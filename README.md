@@ -1,6 +1,6 @@
 # Godot Dialogue Manager - VSCode Extension
 
-一个为 Godot Engine 的 Dialogue Manager [<sup>1</sup>](https://github.com/nathanhoad/godot_dialogue_manager) 插件提供完整开发支持的 VSCode 扩展。
+一个为 Godot Engine 的 Dialogue Manager [<sup>1</sup>](https://github.com/hakubox/godot_dialogue_manager) 插件提供完整开发支持的 VSCode 扩展。
 
 !Extension Icon [<sup>2</sup>](icon.png)
 
@@ -162,7 +162,7 @@ Nathan: 你好[wait=1.5]，欢迎！  # ← 输入 [ 自动提示标签
 4. 点击 **Install**
 
 ### 方法 2：手动安装
-1. 从 GitHub Releases [<sup>3</sup>](https://github.com/your-repo/releases) 下载最新 `.vsix` 文件
+1. 从 GitHub Releases [<sup>3</sup>](https://github.com/hakubox/releases) 下载最新 `.vsix` 文件
 2. 在 VSCode 中按 `Ctrl+Shift+P`
 3. 输入 `Extensions: Install from VSIX...`
 4. 安装下载的 `.vsix` 文件
@@ -322,8 +322,8 @@ Nathan: 这把剑送给你。
 
 ### 开发环境设置
 ```bash
-git clone https://github.com/your-repo/godot-dialogue-vscode.git
-cd godot-dialogue-vscode
+git clone https://github.com/hakubox/dialogue-godot-support.git
+cd dialogue-godot-support
 npm install
 ```
 
@@ -350,7 +350,7 @@ MIT License - 详见 LICENSE [<sup>4</sup>](LICENSE) 文件
 
 ## 📧 联系方式
 
-- GitHub Issues: 提交问题 [<sup>7</sup>](https://github.com/your-repo/issues)
+- GitHub Issues: 提交问题 [<sup>7</sup>](https://github.com/hakubox/issues)
 - 作者: Your Name
 - 邮箱: your.email@example.com
 

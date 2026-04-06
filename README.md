@@ -165,7 +165,12 @@ Nathan: 你好[wait=1.5]，欢迎！  # ← 输入 [ 自动提示标签
 1. 从 GitHub Releases [<sup>3</sup>](https://github.com/your-repo/releases) 下载最新 `.vsix` 文件
 2. 在 VSCode 中按 `Ctrl+Shift+P`
 3. 输入 `Extensions: Install from VSIX...`
-4. 选择下载的 `.vsix` 文件
+4. 安装下载的 `.vsix` 文件
+
+### 方法 3: 手动打包
+1. 从 GitHub获取代码
+2. 执行命令 `vsce package --out ./dist/`
+3. 安装生成的 `.vsix` 文件
 
 ---
 

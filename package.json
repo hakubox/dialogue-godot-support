@@ -5,6 +5,14 @@
   "publisher": "hakubox",
   "version": "0.2.0",
   "icon": "icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hakubox/dialogue-godot-support.git"
+  },
+  "homepage": "https://github.com/hakubox/dialogue-godot-support#readme",
+  "bugs": {
+    "url": "https://github.com/hakubox/dialogue-godot-support/issues"
+  },
   "engines": {
     "vscode": "^1.110.0"
   },

@@ -1,9 +1,10 @@
 # Change Log
 
-All notable changes to the "dialogue-godot-support" extension will be documented in this file.
-
-Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
-
-## [0.3.0]
+## [0.3.0] **2026-04-06**
 
 - 修复代码高亮问题以及错误提示问题。
+
+## [0.3.1] **2026-04-06**
+
+- 添加自定义全局变量。
+- 修复错误提示失效的问题。

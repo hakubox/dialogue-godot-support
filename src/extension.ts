@@ -43,6 +43,24 @@ interface GodotProperty {
 	isExported: boolean;
 }
 
+/** 全局变量定义（支持复杂嵌套类型） */
+interface GlobalVariable {
+	type: string;       // 基础类型
+	comment?: string;   // 说明
+	schema?: GlobalVariableSchema;  // ✅ 新增：Dictionary 的内部结构
+	itemType?: string;  // ✅ 新增：Array 的元素类型
+}
+
+/** 变量结构定义（支持递归） */
+interface GlobalVariableSchema {
+	[key: string]: GlobalVariable;  // ✅ 递归定义，支持无限嵌套
+}
+
+/** 全局变量配置(从 settings.json 读取) */
+interface GlobalVariablesConfig {
+	[variableName: string]: GlobalVariable;
+}
+
 /**
  * 格式化 Godot 风格的文档注释
  * 
@@ -347,11 +365,23 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.workspace.onDidChangeConfiguration(event => {
+			// 现有:全局类配置变更
 			if (event.affectsConfiguration('dialogue.diagnostics.globalClasses')) {
 				console.log('[Dialogue] 🔄 配置已变更，重新构建全局成员索引');
 				classCache.refreshGlobalMembers();
-
 				// ✅ 重新诊断所有打开的 dialogue 文件
+				vscode.workspace.textDocuments.forEach(doc => {
+					if (doc.languageId === 'dialogue') {
+						diagnosticProvider.updateDiagnostics(doc);
+					}
+				});
+			}
+			// ✅ 新增:全局变量配置变更
+			if (event.affectsConfiguration('dialogue.diagnostics.globalVariables')) {
+				console.log('[Dialogue] 🔄 全局变量配置已变更');
+				classCache.refreshGlobalVariables();
+
+				// 重新诊断所有打开的文件
 				vscode.workspace.textDocuments.forEach(doc => {
 					if (doc.languageId === 'dialogue') {
 						diagnosticProvider.updateDiagnostics(doc);
@@ -379,9 +409,98 @@ class GodotClassCache {
 	private cachedGlobalClassNames: string = '';
 
 	private globalMembers: Map<string, { className: string; type: 'method' | 'property' | 'signal' }> = new Map();
+	/** 全局变量存储 */
+	private globalVariables: Map<string, GlobalVariable> = new Map();
 
 	constructor(workspaceFolder?: vscode.WorkspaceFolder) {
 		this.workspaceFolder = workspaceFolder;
+	}
+
+	/**
+	 * ✅ 新增：解析变量的属性路径
+	 * 例如：playerStats.equipment.weapon
+	 * 返回最终属性的类型和注释
+		*/
+	resolveVariableProperty(
+		variableName: string,
+		propertyPath: string[]
+	): { type: string; comment?: string } | undefined {
+		const variable = this.globalVariables.get(variableName);
+		if (!variable) {
+			console.log(`[Dialogue] ❌ 未找到全局变量: ${variableName}`);
+			return undefined;
+		}
+
+		console.log(`[Dialogue] 🔍 解析属性路径: ${variableName}.${propertyPath.join('.')}`);
+
+		// 从根变量开始递归查找
+		return this.resolvePropertyInSchema(variable, propertyPath, 0);
+	}
+
+	/**
+	 * ✅ 新增：在 schema 中递归查找属性
+	 */
+	private resolvePropertyInSchema(
+		current: GlobalVariable,
+		propertyPath: string[],
+		depth: number
+	): { type: string; comment?: string } | undefined {
+		// 已经到达路径末尾
+		if (depth >= propertyPath.length) {
+			return { type: current.type, comment: current.comment };
+		}
+
+		const currentProp = propertyPath[depth];
+
+		// 如果当前类型不是 Dictionary，无法继续访问
+		if (current.type !== 'Dictionary' || !current.schema) {
+			console.log(`[Dialogue] ⚠️ 无法访问 ${current.type} 的属性: ${currentProp}`);
+			return undefined;
+		}
+
+		// 在 schema 中查找属性
+		const nextProp = current.schema[currentProp];
+		if (!nextProp) {
+			console.log(`[Dialogue] ❌ 属性不存在: ${currentProp}`);
+			return undefined;
+		}
+
+		// 递归查找下一层
+		return this.resolvePropertyInSchema(nextProp, propertyPath, depth + 1);
+	}
+
+	/**
+	 * ✅ 新增：获取 Dictionary 的所有属性（用于补全）
+	 */
+	getVariableProperties(variableName: string, propertyPath: string[]): Array<{
+		name: string;
+		type: string;
+		comment?: string;
+	}> {
+		const variable = this.globalVariables.get(variableName);
+		if (!variable) return [];
+
+		// 逐层深入，找到目标 Dictionary
+		let current = variable;
+		for (const prop of propertyPath) {
+			if (current.type !== 'Dictionary' || !current.schema) {
+				return [];
+			}
+			const next = current.schema[prop];
+			if (!next) return [];
+			current = next;
+		}
+
+		// 返回当前层级的所有属性
+		if (current.type !== 'Dictionary' || !current.schema) {
+			return [];
+		}
+
+		return Object.entries(current.schema).map(([name, def]) => ({
+			name,
+			type: def.type,
+			comment: def.comment
+		}));
 	}
 
 	async initialize(): Promise<void> {
@@ -400,10 +519,14 @@ class GodotClassCache {
 
 		this.buildGlobalMembersIndex();
 
+		// 4. 加载全局变量
+		this.loadGlobalVariables();
+
 		console.log('[Dialogue] ✅ 类缓存初始化完成');
 		console.log('[Dialogue] 📊 全局类数量:', this.classes.size);
 		console.log('[Dialogue] 📊 AutoLoad 数量:', this.autoloads.size);
 		console.log('[Dialogue] 📊 全局成员数量:', this.globalMembers.size);
+		console.log('[Dialogue] 📊 全局变量数量:', this.globalVariables.size);
 	}
 
 	/**
@@ -706,6 +829,45 @@ class GodotClassCache {
 	isAutoload(name: string): boolean {
 		return this.autoloads.has(name);
 	}
+
+	/**
+	 * 加载全局变量配置
+	 */
+	loadGlobalVariables(): void {
+		const config = vscode.workspace.getConfiguration('dialogue');
+		const varsConfig: GlobalVariablesConfig = config.get('diagnostics.globalVariables', {});
+		this.globalVariables.clear();
+		for (const [name, def] of Object.entries(varsConfig)) {
+			// 检查类型是否是内置类型或已定义的类
+			const isBuiltIn = ['String', 'int', 'float', 'bool', 'Array', 'Dictionary', 'Variant', 'Node', 'Node2D', 'Node3D'].includes(def.type);
+			const isCustomClass = this.classes.has(def.type);
+			if (!isBuiltIn && !isCustomClass) {
+				console.warn(`[Dialogue] ⚠️ 全局变量 '${name}' 的类型 '${def.type}' 未找到`);
+			}
+			this.globalVariables.set(name, def);
+			console.log(`[Dialogue] 🌐 全局变量: ${name} (${def.type})`);
+		}
+		console.log(`[Dialogue] 📊 全局变量数量: ${this.globalVariables.size}`);
+	}
+	/**
+	 * 获取全局变量
+	 */
+	getGlobalVariable(name: string): GlobalVariable | undefined {
+		return this.globalVariables.get(name);
+	}
+	/**
+	 * 获取所有全局变量(用于补全)
+	 */
+	getAllGlobalVariables(): Array<{ name: string; def: GlobalVariable }> {
+		return Array.from(this.globalVariables.entries()).map(([name, def]) => ({ name, def }));
+	}
+	/**
+	 * 刷新全局变量(配置变更时调用)
+	 */
+	refreshGlobalVariables(): void {
+		console.log('[Dialogue] 🔄 刷新全局变量配置');
+		this.loadGlobalVariables();
+	}
 }
 
 // ============ 补全提供者 ============
@@ -779,10 +941,35 @@ class GodotCompletionProvider implements vscode.CompletionItemProvider {
 		}
 
 		// ✅ 优先检查成员访问（类名.）
-		const memberAccessMatch = beforeCursor.match(/(\w+)\.(\w*)$/);
+		// ✅ 优先检查成员访问（支持多层：objA.b.c）
+		const memberAccessMatch = beforeCursor.match(/(\w+(?:\.\w+)*)\.(\w*)$/);
 		if (memberAccessMatch) {
-			const className = memberAccessMatch[1];
-			return this.getClassMembers(className);
+			const fullPath = memberAccessMatch[1];  // 例如：playerStats.equipment
+			const partialMember = memberAccessMatch[2];
+
+			console.log(`[Dialogue] 🔍 成员访问: ${fullPath}.${partialMember}`);
+
+			// 分割路径
+			const pathParts = fullPath.split('.');
+			const rootIdentifier = pathParts[0];
+
+			// ✅ 检查是否是全局变量
+			const globalVar = this.classCache.getGlobalVariable(rootIdentifier);
+			if (globalVar) {
+				console.log(`[Dialogue] 🌐 全局变量成员访问: ${fullPath}`);
+
+				// 如果只有一层（playerStats.xxx）
+				if (pathParts.length === 1) {
+					return this.getVariableMembers(rootIdentifier, []);
+				}
+
+				// 多层访问（playerStats.equipment.xxx）
+				const propertyPath = pathParts.slice(1);  // ['equipment']
+				return this.getVariableMembers(rootIdentifier, propertyPath);
+			}
+
+			// 否则当作类名处理
+			return this.getClassMembers(rootIdentifier);
 		}
 
 		// ✅ 然后检查是否在代码区域（需要手动触发）
@@ -802,7 +989,11 @@ class GodotCompletionProvider implements vscode.CompletionItemProvider {
 			// ✅ 如果用户手动触发（Ctrl+Space），也显示补全
 			if (context.triggerKind === vscode.CompletionTriggerKind.Invoke) {
 				console.log('[Dialogue] 💡 用户手动触发补全');
-				return [...this.getAllClasses(), ...this.getGlobalMembersCompletions()];
+				return [
+					...this.getAllClasses(),
+					...this.getGlobalVariablesCompletions(),
+					...this.getGlobalMembersCompletions()
+				];
 			}
 
 			console.log('[Dialogue] ⚠️ 不在代码区域，跳过补全');
@@ -811,7 +1002,11 @@ class GodotCompletionProvider implements vscode.CompletionItemProvider {
 
 		console.log('[Dialogue] ✅ 在代码区域，返回所有类');
 
-		return [...this.getAllClasses(), ...this.getGlobalMembersCompletions()];
+		return [
+			...this.getAllClasses(),
+			...this.getGlobalVariablesCompletions(),
+			...this.getGlobalMembersCompletions()
+		];
 	}
 
 	/**
@@ -880,6 +1075,83 @@ class GodotCompletionProvider implements vscode.CompletionItemProvider {
 
 				items.push(item);
 			}
+		}
+
+		return items;
+	}
+
+	/**
+	 * ✅ 新增:获取全局变量的补全项
+	 */
+	private getGlobalVariablesCompletions(): vscode.CompletionItem[] {
+		const items: vscode.CompletionItem[] = [];
+		const globalVars = this.classCache.getAllGlobalVariables();
+		for (const { name, def } of globalVars) {
+			const item = new vscode.CompletionItem(
+				name,
+				vscode.CompletionItemKind.Variable
+			);
+			item.detail = `${def.type} (全局变量)`;
+
+			const docs: string[] = [];
+			docs.push(`🌐 **全局变量** (在 settings.json 中配置)`);
+			docs.push('');
+			docs.push(`**类型:** \`${def.type}\``);
+
+			if (def.comment) {
+				docs.push('');
+				docs.push(`**说明:**`);
+				// 支持多行注释
+				docs.push(def.comment);
+			}
+			item.documentation = new vscode.MarkdownString(docs.join('\n'));
+			item.sortText = `0_var_${name}`;  // 最高优先级
+			items.push(item);
+		}
+		return items;
+	}
+
+	/**
+	 * ✅ 新增：获取变量属性的补全项
+	 */
+	private getVariableMembers(
+		variableName: string,
+		propertyPath: string[]
+	): vscode.CompletionItem[] {
+		const items: vscode.CompletionItem[] = [];
+		const properties = this.classCache.getVariableProperties(variableName, propertyPath);
+
+		console.log(`[Dialogue] 📦 获取变量成员: ${variableName}.${propertyPath.join('.')}`);
+		console.log(`[Dialogue] 📊 找到 ${properties.length} 个属性`);
+
+		for (const prop of properties) {
+			// 移除可选标记（String? -> String）
+			const cleanType = prop.type.replace('?', '');
+			const isOptional = prop.type.endsWith('?');
+
+			const item = new vscode.CompletionItem(
+				prop.name,
+				vscode.CompletionItemKind.Property
+			);
+
+			item.detail = `${prop.type} (变量属性)`;
+
+			const docs: string[] = [];
+			docs.push(`**类型:** \`${cleanType}\``);
+
+			if (isOptional) {
+				docs.push(`**可选:** 是`);
+			}
+
+			if (prop.comment) {
+				docs.push('');
+				docs.push(`**说明:** ${prop.comment}`);
+			}
+
+			item.documentation = new vscode.MarkdownString(docs.join('\n'));
+			item.sortText = `0_prop_${prop.name}`;
+
+			items.push(item);
 		}
 
 		return items;
@@ -1057,21 +1329,49 @@ class GodotHoverProvider implements vscode.HoverProvider {
 		const word = document.getText(wordRange);
 		console.log(`[Dialogue] 🔍 光标下的单词: ${word}`);
 
-		// ✅ 检测成员访问：向前查找最近的点号
+		// ✅ 检测成员访问：支持多层嵌套
 		const beforeWord = line.substring(0, wordRange.start.character);
-		const dotIndex = beforeWord.lastIndexOf('.');
+		const fullPathMatch = beforeWord.match(/(\w+(?:\.\w+)*)\.$/);
 
-		if (dotIndex !== -1) {
-			// 提取类名（点号之前的单词）
-			const beforeDot = beforeWord.substring(0, dotIndex);
-			const classNameMatch = beforeDot.match(/(\w+)$/);
+		if (fullPathMatch) {
+			const fullPath = fullPathMatch[1];  // 例如：playerStats.equipment
+			const pathParts = fullPath.split('.');
+			const rootIdentifier = pathParts[0];
 
-			if (classNameMatch) {
-				const className = classNameMatch[1];
-				console.log(`[Dialogue] 🔍 检测到成员访问: ${className}.${word}`);
+			console.log(`[Dialogue] 🔍 悬停在成员上: ${fullPath}.${word}`);
 
-				return this.getMemberHover(className, word);
+			// ✅ 检查是否是全局变量
+			const globalVar = this.classCache.getGlobalVariable(rootIdentifier);
+			if (globalVar) {
+				console.log(`[Dialogue] 🌐 全局变量属性悬停`);
+
+				const propertyPath = [...pathParts.slice(1), word];
+				const result = this.classCache.resolveVariableProperty(rootIdentifier, propertyPath);
+
+				if (result) {
+					const cleanType = result.type.replace('?', '');
+					const isOptional = result.type.endsWith('?');
+
+					const docs: string[] = [];
+					docs.push(`## ${word}`);
+					docs.push('');
+					docs.push(`**类型:** \`${cleanType}\`${isOptional ? ' (可选)' : ''}`);
+
+					if (result.comment) {
+						docs.push('');
+						docs.push(`**说明:** ${result.comment}`);
+					}
+
+					docs.push('');
+					docs.push('---');
+					docs.push(`💡 来自全局变量 \`${rootIdentifier}\``);
+
+					return new vscode.Hover(new vscode.MarkdownString(docs.join('\n')));
+				}
 			}
+
+			// 否则当作类成员处理
+			return this.getMemberHover(rootIdentifier, word);
 		}
 
 		const globalMember = this.classCache.resolveGlobalMember(word);
@@ -1079,6 +1379,26 @@ class GodotHoverProvider implements vscode.HoverProvider {
 		if (globalMember) {
 			console.log(`[Dialogue] 🌐 找到全局成员: ${word} (来自 ${globalMember.className})`);
 			return this.getMemberHover(globalMember.className, word);
+		}
+
+		// ✅ 新增:检查是否是全局变量本身
+		const globalVar = this.classCache.getGlobalVariable(word);
+
+		if (globalVar) {
+			const docs: string[] = [];
+			docs.push(`## 🌐 ${word}`);
+			docs.push('');
+			docs.push(`**类型:** \`${globalVar.type}\``);
+
+			if (globalVar.comment) {
+				docs.push('');
+				docs.push(`**说明:**`);
+				docs.push(globalVar.comment);
+			}
+			docs.push('');
+			docs.push('---');
+			docs.push('💡 **全局变量** (在 settings.json 中配置)');
+			return new vscode.Hover(new vscode.MarkdownString(docs.join('\n')));
 		}
 
 		// ✅ 检测单独的类名
@@ -1362,12 +1682,22 @@ class GodotDefinitionProvider implements vscode.DefinitionProvider {
 			if (classNameMatch) {
 				const className = classNameMatch[1];
 
+				// ✅ 新增:先检查是否是全局变量
+				const globalVar = this.classCache.getGlobalVariable(className);
+
 				// 检查光标是否在类名上
 				const classNameStart = beforeDot - className.length;
 				const classNameEnd = beforeDot;
 
 				if (position.character >= classNameStart && position.character <= classNameEnd) {
-					console.log(`[Dialogue] ✅ 光标在类名上: ${className}`);
+					console.log(`[Dialogue] ✅ 光标在${globalVar ? '全局变量' : '类名'}上: ${className}`);
+
+					// ✅ 全局变量不支持跳转到定义
+					if (globalVar) {
+						console.log(`[Dialogue] ⚠️ 全局变量不支持跳转(在配置中定义)`);
+						return undefined;
+					}
+
 					return this.getClassDefinition(className);
 				}
 
@@ -1382,8 +1712,10 @@ class GodotDefinitionProvider implements vscode.DefinitionProvider {
 						const memberEnd = memberStart + memberName.length;
 
 						if (position.character >= memberStart && position.character <= memberEnd) {
-							console.log(`[Dialogue] ✅ 光标在成员名上: ${className}.${memberName}`);
-							return this.getMemberDefinition(className, memberName);
+							// ✅ 如果是全局变量,使用其类型
+							const targetClass = globalVar ? globalVar.type : className;
+							console.log(`[Dialogue] ✅ 光标在成员名上: ${targetClass}.${memberName}`);
+							return this.getMemberDefinition(targetClass, memberName);
 						}
 					}
 				}
@@ -1867,6 +2199,48 @@ class GodotDiagnosticProvider {
 				// ============ 变量：宽松检查 ============
 				console.log(`[Dialogue] 💡 '${identifier}' 被识别为变量，跳过类检查`);
 
+				// ✅ 新增:优先检查是否是全局变量
+				const globalVar = this.classCache.getGlobalVariable(identifier);
+				if (globalVar) {
+					console.log(`[Dialogue] 🌐 全局变量调用: ${identifier}.${methodName}()`);
+
+					const cls = this.classCache.getClass(globalVar.type);
+					if (cls) {
+						const method = cls.methods.find(m => m.name === methodName);
+						if (!method) {
+							const methodStart = matchStart + identifier.length + 1;
+							const range = new vscode.Range(
+								lineIndex,
+								startColumn + methodStart,
+								lineIndex,
+								startColumn + methodStart + methodName.length
+							);
+
+							diagnostics.push(
+								this.createDiagnostic(
+									range,
+									`类型 '${globalVar.type}' 中不存在方法 '${methodName}'`,
+									vscode.DiagnosticSeverity.Error
+								)
+							);
+							continue;
+						}
+
+						// 验证参数
+						this.validateMethodArguments(
+							method,
+							globalVar.type,
+							methodName,
+							argsString,
+							document,
+							lineIndex,
+							startColumn + matchStart,
+							diagnostics
+						);
+					}
+					continue;
+				}
+
 				// ✅ 尝试推断变量类型
 				const inferredType = this.inferVariableType(identifier, document, lineIndex);
 
@@ -1961,44 +2335,67 @@ class GodotDiagnosticProvider {
 		}
 
 		// ============ 第二步：检查属性访问 ============
-		const propertyAccessRegex = /(\w+)\.(\w+)/g;
+		const propertyAccessRegex = /(\w+(?:\.\w+)*)\.(\w+)/g;
 
 		while ((match = propertyAccessRegex.exec(code)) !== null) {
-			const identifier = match[1];
+			const fullPath = match[1];  // 例如：playerStats.equipment
 			const memberName = match[2];
 			const matchStart = match.index;
 			const matchEnd = match.index + match[0].length;
 
-			// ✅ 检查这个位置是否已经被方法调用检查过
+			// 跳过已检查的方法调用
 			let isAlreadyChecked = false;
 			for (const range of checkedRanges) {
 				const [start, end] = range.split('-').map(Number);
-				// 如果当前匹配在已检查范围内，跳过
 				if (matchStart >= start && matchEnd <= end) {
 					isAlreadyChecked = true;
 					break;
 				}
 			}
+			if (isAlreadyChecked) continue;
 
-			if (isAlreadyChecked) {
-				console.log(`[Dialogue] ⏭️ 跳过已检查的方法调用: ${identifier}.${memberName}`);
-				continue;
-			}
-
-			// ✅ 检查后面是否紧跟括号（双重保险）
+			// 检查后面是否紧跟括号
 			const nextChar = code[matchEnd];
-			if (nextChar === '(') {
-				console.log(`[Dialogue] ⏭️ 跳过方法调用（检测到括号）: ${identifier}.${memberName}`);
+			if (nextChar === '(') continue;
+
+			const pathParts = fullPath.split('.');
+			const rootIdentifier = pathParts[0];
+
+			// ✅ 检查是否是全局变量
+			const globalVar = this.classCache.getGlobalVariable(rootIdentifier);
+			if (globalVar) {
+				console.log(`[Dialogue] 🌐 检查全局变量属性: ${fullPath}.${memberName}`);
+
+				const propertyPath = [...pathParts.slice(1), memberName];
+				const result = this.classCache.resolveVariableProperty(rootIdentifier, propertyPath);
+
+				if (!result) {
+					const memberStart = matchStart + fullPath.length + 1;
+					const range = new vscode.Range(
+						lineIndex,
+						startColumn + memberStart,
+						lineIndex,
+						startColumn + memberStart + memberName.length
+					);
+
+					diagnostics.push(
+						this.createDiagnostic(
+							range,
+							`全局变量 '${rootIdentifier}' 的路径 '${propertyPath.join('.')}' 不存在`,
+							vscode.DiagnosticSeverity.Error
+						)
+					);
+				}
 				continue;
 			}
 
 			// 只检查大写开头的类名
-			if (!/^[A-Z]/.test(identifier)) {
-				console.log(`[Dialogue] 💡 '${identifier}' 被识别为变量，跳过属性检查`);
+			if (!/^[A-Z]/.test(rootIdentifier)) {
+				console.log(`[Dialogue] 💡 '${rootIdentifier}' 被识别为变量，跳过属性检查`);
 				continue;
 			}
 
-			const cls = this.classCache.getClass(identifier);
+			const cls = this.classCache.getClass(rootIdentifier);
 			if (!cls) continue;
 
 			const property = cls.properties.find(p => p.name === memberName);
@@ -2006,7 +2403,7 @@ class GodotDiagnosticProvider {
 			const signal = cls.signals.find(s => s === memberName);
 
 			if (!property && !method && !signal) {
-				const memberStart = matchStart + identifier.length + 1;
+				const memberStart = matchStart + rootIdentifier.length + 1;
 				const range = new vscode.Range(
 					lineIndex,
 					startColumn + memberStart,
@@ -2017,7 +2414,7 @@ class GodotDiagnosticProvider {
 				diagnostics.push(
 					this.createDiagnostic(
 						range,
-						`类 '${identifier}' 中不存在成员 '${memberName}'`,
+						`类 '${rootIdentifier}' 中不存在成员 '${memberName}'`,
 						vscode.DiagnosticSeverity.Error
 					)
 				);

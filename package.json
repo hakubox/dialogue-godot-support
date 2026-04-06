@@ -3,7 +3,7 @@
   "displayName": "Godot Dialogue Manager 增强",
   "description": "为 Godot 4.x Dialogue Manager 提供强大的 VSCode 支持，包括完整的语法高亮、Godot 类/方法的智能补全、实时类型检查、定义跳转、参数提示、标签补全和 Import 路径补全等功能。",
   "publisher": "hakubox",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "icon": "icon.png",
   "repository": {
     "type": "git",
@@ -22,8 +22,7 @@
     "Formatters",
     "Other"
   ],
-  "activationEvents": [
-  ],
+  "activationEvents": [],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
@@ -88,8 +87,69 @@
           },
           "markdownDescription": "配置后可以在对话中直接使用成员名，无需类名前缀。\n\n例如：配置 `StageManager` 后，可以直接写 `{{count}}` 而不是 `{{StageManager.count}}`",
           "examples": [
-            ["StageManager", "PlayerState", "AudioManager"]
+            [
+              "StageManager",
+              "PlayerState",
+              "AudioManager"
+            ]
           ]
+        },
+        "dialogue.diagnostics.globalVariables": {
+          "type": "object",
+          "default": {},
+          "description": "全局变量定义（支持复杂嵌套类型）",
+          "patternProperties": {
+            "^[a-zA-Z_][a-zA-Z0-9_]*$": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "description": "变量类型（如 String、int、Dictionary、Array、自定义类名）"
+                },
+                "comment": {
+                  "type": "string",
+                  "description": "变量说明"
+                },
+                "schema": {
+                  "type": "object",
+                  "description": "复杂类型的内部结构（仅 Dictionary 可用）",
+                  "patternProperties": {
+                    "^[a-zA-Z_][a-zA-Z0-9_]*$": {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "description": "字段类型（支持 ? 表示可选，如 String?）"
+                        },
+                        "comment": {
+                          "type": "string"
+                        },
+                        "schema": {
+                          "type": "object",
+                          "description": "嵌套结构（支持无限层级）"
+                        },
+                        "itemType": {
+                          "type": "string",
+                          "description": "Array 的元素类型（仅 Array 可用）"
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ]
+                    }
+                  }
+                },
+                "itemType": {
+                  "type": "string",
+                  "description": "Array 的元素类型（仅 Array 可用）"
+                }
+              },
+              "required": [
+                "type"
+              ]
+            }
+          },
+          "markdownDescription": "配置全局变量，支持复杂嵌套类型：\n\n**示例 1：简单类型**\n```json\n{\n  \"playerName\": {\n    \"type\": \"String\",\n    \"comment\": \"玩家名\"\n  }\n}\n```\n\n**示例 2：Dictionary 嵌套**\n```json\n{\n  \"playerStats\": {\n    \"type\": \"Dictionary\",\n    \"comment\": \"玩家属性\",\n    \"schema\": {\n      \"hp\": { \"type\": \"int\", \"comment\": \"血量\" },\n      \"skills\": {\n        \"type\": \"Array\",\n        \"itemType\": \"String\",\n        \"comment\": \"技能列表\"\n      }\n    }\n  }\n}\n```\n\n**示例 3：可选类型**\n```json\n{\n  \"equipment\": {\n    \"type\": \"Dictionary\",\n    \"schema\": {\n      \"weapon\": { \"type\": \"String\" },\n      \"armor\": { \"type\": \"String?\", \"comment\": \"可选\" }\n    }\n  }\n}\n```"
         },
         "dialogue.diagnostics.strictMode": {
           "type": "boolean",
@@ -156,8 +216,6 @@
     "check-types": "tsc --noEmit",
     "lint": "eslint src",
     "test": "vscode-test",
-
-    
     "clean": "rm -rf out *.vsix",
     "package": "npm run check-types && npm run lint && node esbuild.js --production",
     "package:clean": "npm run clean && npm run compile && npm run package"

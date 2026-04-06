@@ -37,5 +37,60 @@
         "StageManager",
         "PlayerState",
         "AudioManager"
-    ]
+    ],
+    "dialogue.diagnostics.globalVariables": {
+        // 简单类型
+        "playerName": {
+            "type": "String",
+            "comment": "玩家角色名"
+        },
+        "gold": {
+            "type": "int",
+            "comment": "当前金币数"
+        },
+        // 对象类型(支持属性访问)
+        "gameManager": {
+            "type": "GameManager",
+            "comment": "游戏管理器单例"
+        },
+        // 数组类型
+        "inventoryItems": {
+            "type": "Array",
+            "comment": "背包物品列表"
+        },
+        // 复杂类型
+        "playerStats": {
+            "type": "Dictionary",
+            "comment": "玩家属性",
+            "schema": {
+                "hp": {
+                    "type": "int",
+                    "comment": "血量"
+                },
+                "mp": {
+                    "type": "int",
+                    "comment": "魔法值"
+                },
+                "skills": {
+                    "type": "Array",
+                    "itemType": "String",
+                    "comment": "技能列表"
+                },
+                "equipment": {
+                    "type": "Dictionary",
+                    "comment": "装备信息",
+                    "schema": {
+                        "weapon": {
+                            "type": "String",
+                            "comment": "武器名"
+                        },
+                        "armor": {
+                            "type": "String?",
+                            "comment": "护甲（可选）"
+                        }
+                    }
+                }
+            }
+        },
+    }
 }

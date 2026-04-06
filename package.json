@@ -1,0 +1,153 @@
+{
+  "name": "dialogue-godot-support",
+  "displayName": "dialogue-godot-support",
+  "description": "dialogue_manager的VSCode插件",
+  "publisher": "hakubox",
+  "version": "0.2.0",
+  "icon": "icon.png",
+  "engines": {
+    "vscode": "^1.110.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "dialogue.exportJSON",
+        "title": "Dialogue: 导出文案",
+        "category": "Dialogue"
+      },
+      {
+        "command": "dialogue.previewJSON",
+        "title": "Dialogue: 预览文案 (JSON)",
+        "category": "Dialogue"
+      },
+      {
+        "command": "dialogue.copyJSON",
+        "title": "Dialogue: 复制文案 (JSON)",
+        "category": "Dialogue"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "when": "resourceLangId == dialogue",
+          "command": "dialogue.exportJSON",
+          "group": "dialogue@1"
+        },
+        {
+          "when": "resourceLangId == dialogue",
+          "command": "dialogue.previewJSON",
+          "group": "dialogue@2"
+        },
+        {
+          "when": "resourceLangId == dialogue",
+          "command": "dialogue.copyJSON",
+          "group": "dialogue@3"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "dialogue.exportJSON",
+          "when": "resourceLangId == dialogue"
+        },
+        {
+          "command": "dialogue.previewJSON",
+          "when": "resourceLangId == dialogue"
+        },
+        {
+          "command": "dialogue.copyJSON",
+          "when": "resourceLangId == dialogue"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Dialogue Godot Support",
+      "properties": {
+        "dialogue.diagnostics.globalClasses": {
+          "type": "array",
+          "default": [],
+          "description": "全局类列表（可以在对话中省略类名前缀）",
+          "items": {
+            "type": "string"
+          },
+          "markdownDescription": "配置后可以在对话中直接使用成员名，无需类名前缀。\n\n例如：配置 `StageManager` 后，可以直接写 `{{count}}` 而不是 `{{StageManager.count}}`",
+          "examples": [
+            ["StageManager", "PlayerState", "AudioManager"]
+          ]
+        },
+        "dialogue.diagnostics.strictMode": {
+          "type": "boolean",
+          "default": false,
+          "description": "启用严格模式：对所有无法验证的调用报告警告"
+        },
+        "dialogue.diagnostics.builtInVariables": {
+          "type": "object",
+          "default": {
+            "player": "CharacterBody2D",
+            "game": "Game"
+          },
+          "description": "内置变量的类型映射"
+        }
+      }
+    },
+    "languages": [
+      {
+        "id": "dialogue",
+        "aliases": [
+          "Dialogue",
+          "dialogue"
+        ],
+        "extensions": [
+          ".dialogue"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icon.png",
+          "dark": "./icon.png"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "dialogue",
+        "scopeName": "source.dialogue",
+        "path": "./syntaxes/dialogue.tmLanguage.json"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "npm run check-types && npm run lint && node esbuild.js",
+    "watch": "npm-run-all -p watch:*",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "vscode-test",
+
+    
+    "clean": "rm -rf out *.vsix",
+    "package": "npm run check-types && npm run lint && node esbuild.js --production",
+    "package:clean": "npm run clean && npm run compile && npm run package"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.110.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "22.x",
+    "typescript-eslint": "^8.56.1",
+    "eslint": "^9.39.3",
+    "esbuild": "^0.27.3",
+    "npm-run-all": "^4.1.5",
+    "typescript": "^5.9.3",
+    "@vscode/test-cli": "^0.0.12",
+    "@vscode/test-electron": "^2.5.2"
+  }
+}

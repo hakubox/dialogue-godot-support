@@ -1,0 +1,386 @@
+import * as vscode from 'vscode';
+import * as path from 'path';
+import * as fs from 'fs';
+
+/**
+ * 段落信息
+ */
+export interface TitleInfo {
+	name: string;           // 段落名（如 "start"）
+	fullName: string;       // 完整名（如 "a1/start"，跨文件时带别名）
+	line: number;           // 行号
+	uri: vscode.Uri;        // 文件 URI
+	comment?: string;       // 上方的注释
+	alias?: string;         // 所属文件的别名（跨文件时）
+}
+
+/**
+ * 段落管理器（支持跨文件）
+ */
+export class TitleManager {
+	private titles: Map<string, TitleInfo[]> = new Map(); // URI -> TitleInfo[]
+	private importedTitles: Map<string, TitleInfo[]> = new Map(); // 当前文件 URI -> 导入的段落列表
+
+	/**
+	 * 扫描文档中的所有段落
+	 */
+	public scanDocument(document: vscode.TextDocument): void {
+		const titles: TitleInfo[] = [];
+		const lines = document.getText().split('\n');
+
+		let pendingComment: string | undefined;
+
+		for (let i = 0; i < lines.length; i++) {
+			const line = lines[i];
+			const trimmed = line.trim();
+
+			// ✅ 收集注释（# 开头）
+			if (trimmed.startsWith('#') && !trimmed.startsWith('##')) {
+				const commentText = trimmed.substring(1).trim();
+				if (pendingComment) {
+					pendingComment += '\n' + commentText;
+				} else {
+					pendingComment = commentText;
+				}
+				continue;
+			}
+
+			// ✅ 匹配段落声明：~ xxx
+			const titleMatch = trimmed.match(/^~\s+([^\s]+!?)/);
+			if (titleMatch) {
+				const titleName = titleMatch[1];
+
+				titles.push({
+					name: titleName,
+					fullName: titleName,
+					line: i,
+					uri: document.uri,
+					comment: pendingComment
+				});
+
+				console.log(`[Dialogue] 📍 找到段落: ${titleName} (行 ${i + 1})`);
+
+				pendingComment = undefined;
+				continue;
+			}
+
+			// ✅ 其他行清空待处理注释
+			if (trimmed && !trimmed.startsWith('#')) {
+				pendingComment = undefined;
+			}
+		}
+
+		this.titles.set(document.uri.toString(), titles);
+		console.log(`[Dialogue] ✅ 文档 ${path.basename(document.uri.fsPath)} 扫描完成，找到 ${titles.length} 个段落`);
+
+		// ✅ 同时扫描导入的文件
+		this.scanImportedTitles(document);
+	}
+
+	/**
+	 * 扫描导入的文件中的段落
+	 */
+	private scanImportedTitles(document: vscode.TextDocument): void {
+		const importedTitles: TitleInfo[] = [];
+		const lines = document.getText().split('\n');
+		const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+
+		if (!workspaceFolder) return;
+
+		for (const line of lines) {
+			// ✅ 匹配 import 语句：import "res://xxx.dialogue" as alias
+			const importMatch = line.match(/^\s*import\s+"(res:\/\/[^"]+)"\s+as\s+([^\s]+)/);
+			if (!importMatch) continue;
+
+			const [, resPath, alias] = importMatch;
+
+			// 转换为文件系统路径
+			const fsPath = path.join(
+				workspaceFolder.uri.fsPath,
+				resPath.replace('res://', '')
+			);
+
+			if (!fs.existsSync(fsPath)) {
+				console.log(`[Dialogue] ⚠️ 导入的文件不存在: ${fsPath}`);
+				continue;
+			}
+
+			// 读取导入的文件
+			const importedContent = fs.readFileSync(fsPath, 'utf-8');
+			const importedLines = importedContent.split('\n');
+			const importedUri = vscode.Uri.file(fsPath);
+
+			// 扫描段落
+			for (let i = 0; i < importedLines.length; i++) {
+				const importedLine = importedLines[i];
+				const titleMatch = importedLine.trim().match(/^~\s+([^\s]+!?)/);
+
+				if (titleMatch) {
+					const titleName = titleMatch[1];
+
+					importedTitles.push({
+						name: titleName,
+						fullName: `${alias}/${titleName}`,  // ✅ 带别名的完整名
+						line: i,
+						uri: importedUri,
+						alias: alias
+					});
+
+					console.log(`[Dialogue] 📦 导入段落: ${alias}/${titleName}`);
+				}
+			}
+		}
+
+		this.importedTitles.set(document.uri.toString(), importedTitles);
+		console.log(`[Dialogue] ✅ 导入了 ${importedTitles.length} 个跨文件段落`);
+	}
+
+	/**
+	 * 获取文档中的所有段落（包括导入的）
+	 */
+	public getTitles(documentUri: vscode.Uri): TitleInfo[] {
+		const localTitles = this.titles.get(documentUri.toString()) || [];
+		const importedTitles = this.importedTitles.get(documentUri.toString()) || [];
+
+		return [...localTitles, ...importedTitles];
+	}
+
+	/**
+	 * 根据名称查找段落
+	 */
+	public findTitle(documentUri: vscode.Uri, titleName: string): TitleInfo | undefined {
+		const allTitles = this.getTitles(documentUri);
+
+		// ✅ 优先匹配完整名（如 a1/start）
+		const exactMatch = allTitles.find(t => t.fullName === titleName);
+		if (exactMatch) return exactMatch;
+
+		// ✅ 降级匹配短名（如 start）
+		return allTitles.find(t => t.name === titleName);
+	}
+
+	/**
+	 * 清除文档缓存
+	 */
+	public clearDocument(documentUri: vscode.Uri): void {
+		this.titles.delete(documentUri.toString());
+		this.importedTitles.delete(documentUri.toString());
+	}
+}
+
+
+// ============ 段落跳转补全提供者 ============
+
+export class TitleCompletionProvider implements vscode.CompletionItemProvider {
+	constructor(private titleManager: TitleManager) {}
+
+	async provideCompletionItems(
+		document: vscode.TextDocument,
+		position: vscode.Position
+	): Promise<vscode.CompletionItem[]> {
+		const line = document.lineAt(position.line).text;
+		const beforeCursor = line.substring(0, position.character);
+
+		console.log('[Dialogue] ========== 段落补全被触发 ==========');
+
+		// ✅ 检测 => 或 = 后面（包括空格）
+		// 匹配：
+		// - "=> "
+		// - "=> s"
+		// - "- 选项 => "
+		// - "- 选项 => s"
+		const gotoMatch = beforeCursor.match(/(?:^|\s)(=>|=)\s*([^\s]*)$/);
+		if (!gotoMatch) {
+			console.log('[Dialogue] ⚠️ 不在 => 上下文中');
+			return [];
+		}
+
+		console.log('[Dialogue] ✅ 在 goto 语句中，提供段落补全');
+
+		const titles = this.titleManager.getTitles(document.uri);
+
+		const items: vscode.CompletionItem[] = [];
+
+		// ✅ 添加 END 特殊标记
+		const endItem = new vscode.CompletionItem('END', vscode.CompletionItemKind.Keyword);
+		endItem.detail = '🛑 结束对话';
+		endItem.documentation = new vscode.MarkdownString('**结束当前对话流程**');
+		endItem.sortText = '0_END';
+		items.push(endItem);
+
+		const endForceItem = new vscode.CompletionItem('END!', vscode.CompletionItemKind.Keyword);
+		endForceItem.detail = '🛑 强制结束对话';
+		endForceItem.documentation = new vscode.MarkdownString('**强制结束对话（忽略后续逻辑）**');
+		endForceItem.sortText = '0_END!';
+		items.push(endForceItem);
+
+		// ✅ 添加所有段落
+		for (const title of titles) {
+			const item = new vscode.CompletionItem(
+				title.fullName,
+				vscode.CompletionItemKind.Reference
+			);
+
+			// 区分本地和导入的段落
+			if (title.alias) {
+				item.detail = `📦 ${title.alias} (导入)`;
+			} else {
+				item.detail = `📍 行 ${title.line + 1}`;
+			}
+
+			const docs: string[] = [];
+			docs.push(`## ${title.fullName}`);
+			
+			if (title.comment) {
+				docs.push('');
+				docs.push(title.comment);
+			}
+
+			if (title.alias) {
+				docs.push('');
+				docs.push(`**来源:** \`${path.basename(title.uri.fsPath)}\``);
+			} else {
+				docs.push('');
+				docs.push(`**位置:** 第 ${title.line + 1} 行`);
+			}
+
+			item.documentation = new vscode.MarkdownString(docs.join('\n'));
+			item.sortText = title.alias ? `2_${title.fullName}` : `1_${title.fullName}`;
+
+			items.push(item);
+		}
+
+		console.log(`[Dialogue] 📦 返回 ${items.length} 个段落补全项`);
+		return items;
+	}
+}
+
+// ============ 段落悬停提示提供者 ============
+
+export class TitleHoverProvider implements vscode.HoverProvider {
+	constructor(private titleManager: TitleManager) {}
+
+	async provideHover(
+		document: vscode.TextDocument,
+		position: vscode.Position
+	): Promise<vscode.Hover | undefined> {
+		const line = document.lineAt(position.line).text;
+
+		// ✅ 匹配 => xxx 或 - xxx => yyy
+		const gotoMatch = line.match(/(?:^|\s)(?:=>|=)\s+([^\s]+!?)/);
+		if (!gotoMatch) return undefined;
+
+		const titleNameWithBang = gotoMatch[1];
+		const titleStart = line.indexOf(titleNameWithBang);
+		const titleEnd = titleStart + titleNameWithBang.length;
+
+		// 检查光标是否在段落名上
+		if (position.character < titleStart || position.character > titleEnd) {
+			return undefined;
+		}
+
+    // ✅ 提取实际段落名（移除 !）
+		const hasInstantJump = titleNameWithBang.endsWith('!');
+		const titleName = hasInstantJump 
+			? titleNameWithBang.slice(0, -1) 
+			: titleNameWithBang;
+
+    // ✅ 特殊处理 END 和 END!
+		if (titleName === 'END') {
+			const docs: string[] = [];
+			
+			docs.push(hasInstantJump ? '## 🛑 END!' : '## 🛑 END');
+			docs.push('');
+			
+			if (hasInstantJump) {
+				docs.push('**强制立即结束对话**');
+				docs.push('');
+				docs.push('立即终止对话，跳过所有后续逻辑和清理代码。');
+			} else {
+				docs.push('**结束当前对话流程**');
+				docs.push('');
+				docs.push('对话将正常结束，触发 `dialogue_ended` 信号。');
+			}
+			docs.push('');
+			docs.push('---');
+			docs.push('');
+			docs.push('💡 **提示:** 这是一个特殊的内置标记，不需要定义段落');
+			return new vscode.Hover(new vscode.MarkdownString(docs.join('\n')));
+		}
+
+		// ✅ 查找普通段落
+		const title = this.titleManager.findTitle(document.uri, titleName);
+		if (!title) {
+			return new vscode.Hover(
+				new vscode.MarkdownString(`⚠️ **未找到段落:** \`${titleName}\``)
+			);
+		}
+
+		const docs: string[] = [];
+		docs.push(`## 📍 ${title.fullName}`);
+
+		if (title.comment) {
+			docs.push('');
+			docs.push(title.comment);
+		}
+
+		if (title.alias) {
+			docs.push('');
+			docs.push(`**来源:** \`${path.basename(title.uri.fsPath)}\` (别名: \`${title.alias}\`)`);
+		} else {
+			docs.push('');
+			docs.push(`**位置:** 第 ${title.line + 1} 行`);
+		}
+
+		docs.push('');
+		docs.push('---');
+		docs.push('');
+		docs.push('💡 **提示:** 按 `Ctrl + 点击` 可跳转到定义');
+
+		return new vscode.Hover(new vscode.MarkdownString(docs.join('\n')));
+	}
+}
+
+// ============ 段落定义跳转提供者 ============
+
+export class TitleDefinitionProvider implements vscode.DefinitionProvider {
+	constructor(private titleManager: TitleManager) {}
+
+	async provideDefinition(
+		document: vscode.TextDocument,
+		position: vscode.Position
+	): Promise<vscode.Definition | undefined> {
+		const line = document.lineAt(position.line).text;
+
+		// ✅ 匹配 => xxx
+		const gotoMatch = line.match(/(?:^|\s)(?:=>|=)\s+([^\s]+!?)/);
+		if (!gotoMatch) return undefined;
+
+		const titleNameWithBang = gotoMatch[1];
+		const titleStart = line.indexOf(titleNameWithBang);
+		const titleEnd = titleStart + titleNameWithBang.length;
+
+		// 检查光标是否在段落名上
+		if (position.character < titleStart || position.character > titleEnd) {
+			return undefined;
+		}
+		// ✅ 提取实际段落名（移除 !）
+		const titleName = titleNameWithBang.endsWith('!') 
+			? titleNameWithBang.slice(0, -1) 
+			: titleNameWithBang;
+		// ✅ 特殊处理 END 和 END!（不跳转，但不报错）
+		if (titleName === 'END') {
+			console.log(`[Dialogue] 💡 ${titleNameWithBang} 是内置标记，无需跳转`);
+			return undefined;
+		}
+		// ✅ 查找段落
+		const title = this.titleManager.findTitle(document.uri, titleName);
+		if (!title) {
+			console.log(`[Dialogue] ❌ 未找到段落: ${titleName}`);
+			return undefined;
+		}
+		console.log(`[Dialogue] ✅ 跳转到段落: ${title.fullName} (${title.uri.fsPath}:${title.line})`);
+		const targetPosition = new vscode.Position(title.line, 0);
+		return new vscode.Location(title.uri, targetPosition);
+	}
+}

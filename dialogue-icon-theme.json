@@ -1,0 +1,18 @@
+{
+  "iconDefinitions": {
+    "_dialogue_file": {
+      "iconPath": "./icon.png"
+    },
+    "_dialogue_folder": {
+      "iconPath": "./icon.png"
+    }
+  },
+  "file": ".dialogue",
+  "fileExtensions": {
+    "dialogue": "_dialogue_file"
+  },
+  "folderNames": {
+    "dialogues": "_dialogue_folder",
+    "dialogue": "_dialogue_folder"
+  }
+}

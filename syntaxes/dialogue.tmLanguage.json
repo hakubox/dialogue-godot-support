@@ -1,0 +1,920 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Godot Dialogue Manager",
+  "scopeName": "source.dialogue",
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#imports"
+    },
+    {
+      "include": "#using"
+    },
+    {
+      "include": "#titles"
+    },
+    {
+      "include": "#block-conditions"
+    },
+    {
+      "include": "#block-mutations"
+    },
+    {
+      "include": "#goto"
+    },
+    {
+      "include": "#responses"
+    },
+    {
+      "include": "#character-lines"
+    },
+    {
+      "include": "#narration-lines"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.number-sign.dialogue",
+          "match": "^\\s*#.*$"
+        }
+      ]
+    },
+    "imports": {
+      "patterns": [
+        {
+          "name": "meta.import.dialogue",
+          "match": "^\\s*(import)\\s+(\"[^\"]+\")\\s+(as)\\s+(\\w+)",
+          "captures": {
+            "1": {
+              "name": "keyword.control.import.dialogue"
+            },
+            "2": {
+              "name": "string.quoted.double.dialogue"
+            },
+            "3": {
+              "name": "keyword.control.as.dialogue"
+            },
+            "4": {
+              "name": "variable.other.alias.dialogue"
+            }
+          }
+        }
+      ]
+    },
+    "using": {
+      "patterns": [
+        {
+          "name": "meta.using.dialogue",
+          "match": "^\\s*(using)\\s+(\\w+)",
+          "captures": {
+            "1": {
+              "name": "keyword.control.using.dialogue"
+            },
+            "2": {
+              "name": "entity.name.class.dialogue"
+            }
+          }
+        }
+      ]
+    },
+    "titles": {
+      "patterns": [
+        {
+          "name": "entity.name.function.title.dialogue",
+          "match": "^\\s*~\\s+([^\\s]+)",
+          "captures": {
+            "0": {
+              "name": "keyword.control.goto.operator.dialogue"
+            },
+            "1": {
+              "name": "keyword.control.goto.operator.dialogue"
+            }
+          }
+        }
+      ]
+    },
+    "block-conditions": {
+      "patterns": [
+        {
+          "name": "meta.block-condition.dialogue",
+          "match": "^\\s*(if|elif|while|when|match)\\s+(.+)$",
+          "captures": {
+            "1": {
+              "name": "keyword.control.conditional.dialogue"
+            },
+            "2": {
+              "patterns": [
+                {
+                  "include": "#expression"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "keyword.control.conditional.else.dialogue",
+          "match": "^\\s*(else)\\s*$"
+        }
+      ]
+    },
+    "block-mutations": {
+      "patterns": [
+        {
+          "name": "meta.block-mutation.do.dialogue",
+          "match": "^\\s*(do!?)\\s+(.+)$",
+          "captures": {
+            "1": {
+              "name": "keyword.control.do.dialogue"
+            },
+            "2": {
+              "patterns": [
+                {
+                  "include": "#expression"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "meta.block-mutation.set.dialogue",
+          "match": "^\\s*(set)\\s+([^=]+)(=|\\+=|-=|\\*=|/=)\\s*(.+)$",
+          "captures": {
+            "1": {
+              "name": "keyword.control.set.dialogue"
+            },
+            "2": {
+              "patterns": [
+                {
+                  "include": "#variable-reference"
+                }
+              ]
+            },
+            "3": {
+              "name": "keyword.operator.assignment.dialogue"
+            },
+            "4": {
+              "patterns": [
+                {
+                  "include": "#expression"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "goto": {
+      "patterns": [
+        {
+          "name": "meta.goto.dialogue",
+          "match": "^\\s*(=><?)\\s*(END!?|[^\\s]+)(?:\\s+\\[if\\s+(.+?)\\])?$",
+          "captures": {
+            "0": {
+              "name": "meta.goto.full.dialogue"
+            },
+            "1": {
+              "name": "keyword.control.goto.operator.dialogue"
+            },
+            "2": {
+              "name": "entity.name.function.target.dialogue"
+            },
+            "3": {
+              "patterns": [
+                {
+                  "include": "#expression"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "comment": "动态跳转: => {{expression}}",
+          "name": "meta.goto.dynamic.dialogue",
+          "begin": "^\\s*(=><?)\\s*(\\{\\{)",
+          "end": "(\\}\\})",
+          "beginCaptures": {
+            "1": {
+              "name": "keyword.control.goto.operator.dialogue"
+            },
+            "2": {
+              "name": "punctuation.definition.template-expression.begin.dialogue"
+            }
+          },
+          "endCaptures": {
+            "1": {
+              "name": "punctuation.definition.template-expression.end.dialogue"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#expression"
+            }
+          ]
+        }
+      ]
+    },
+    "responses": {
+      "patterns": [
+        {
+          "name": "meta.response.dialogue",
+          "begin": "^\\s*-\\s*",
+          "end": "$",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.section.embedded.start.dialogue"
+            },
+            "1": {
+              "name": "punctuation.definition.list.dialogue"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#response-goto"
+            },
+            {
+              "include": "#response-condition"
+            },
+            {
+              "include": "#id-tag"
+            },
+            {
+              "name": "string.unquoted.response-text.dialogue",
+              "match": "[^=\\[\\n]+"
+            }
+          ]
+        }
+      ]
+    },
+    "response-goto": {
+      "patterns": [
+        {
+          "name": "meta.response-goto.dialogue",
+          "match": "(=>|=)\\s+(END!?|[^\\s]+)(?=\\s|\\[|$)",
+          "captures": {
+            "1": {
+              "name": "keyword.control.goto.operator.dialogue"
+            },
+            "2": {
+              "name": "entity.name.function.dialogue"
+            }
+          }
+        }
+      ]
+    },
+    "response-condition": {
+      "patterns": [
+        {
+          "name": "meta.response-condition.dialogue",
+          "begin": "(\\[)(if)\\s+",
+          "end": "(\\])",
+          "beginCaptures": {
+            "1": {
+              "name": "punctuation.section.embedded.start.dialogue"
+            },
+            "2": {
+              "name": "keyword.control.conditional.dialogue"
+            }
+          },
+          "endCaptures": {
+            "1": {
+              "name": "punctuation.section.embedded.end.dialogue"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#expression"
+            }
+          ]
+        }
+      ]
+    },
+    "character-lines": {
+      "patterns": [
+        {
+          "comment": "随机组开始标记: % 单独一行",
+          "name": "keyword.control.random-group.dialogue",
+          "match": "^\\s*(%)\\s*$"
+        },
+        {
+          "comment": "随机对话（带权重）: %2 角色: 对话",
+          "name": "meta.character-line.random.weighted.dialogue",
+          "begin": "^\\s*(%)([0-9]+)\\s+((?:\\{\\{[^}]+\\}\\}|[^:\\[\\]\\s{}]+))\\s*(:)\\s*",
+          "end": "$",
+          "beginCaptures": {
+            "1": {
+              "name": "keyword.control.random.dialogue"
+            },
+            "2": {
+              "name": "constant.numeric.weight.dialogue"
+            },
+            "3": {
+              "patterns": [
+                {
+                  "include": "#variable-interpolation"
+                },
+                {
+                  "name": "entity.name.type.character.dialogue",
+                  "match": "[^:\\s{}]+"
+                }
+              ]
+            },
+            "4": {
+              "name": "keyword.operator.colon.dialogue"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#id-tag"
+            },
+            {
+              "include": "#text-content"
+            }
+          ]
+        },
+        {
+          "comment": "随机对话（默认权重）: % 角色: 对话",
+          "name": "meta.character-line.random.single.dialogue",
+          "begin": "^\\s*(%)\\s+((?:\\{\\{[^}]+\\}\\}|[^:\\[\\]\\s{}]+))\\s*(:)\\s*",
+          "end": "$",
+          "beginCaptures": {
+            "1": {
+              "name": "keyword.control.random.dialogue"
+            },
+            "2": {
+              "patterns": [
+                {
+                  "include": "#variable-interpolation"
+                },
+                {
+                  "name": "entity.name.type.character.dialogue",
+                  "match": "[^:\\s{}]+"
+                }
+              ]
+            },
+            "3": {
+              "name": "keyword.operator.colon.dialogue"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#id-tag"
+            },
+            {
+              "include": "#text-content"
+            }
+          ]
+        },
+        {
+          "comment": "普通角色对话: 角色: 对话",
+          "name": "meta.character-line.dialogue",
+          "begin": "^\\s*((?:\\{\\{[^}]+\\}\\}|[^:\\[\\]\\s{}]+))\\s*(:)\\s*",
+          "end": "$",
+          "beginCaptures": {
+            "1": {
+              "patterns": [
+                {
+                  "include": "#variable-interpolation"
+                },
+                {
+                  "name": "entity.name.type.character.dialogue",
+                  "match": "[^:\\s{}]+"
+                }
+              ]
+            },
+            "2": {
+              "name": "keyword.operator.colon.dialogue"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#id-tag"
+            },
+            {
+              "include": "#text-content"
+            }
+          ]
+        }
+      ]
+    },
+    "narration-lines": {
+      "patterns": [
+        {
+          "name": "meta.narration-line.dialogue",
+          "begin": "^\\s*(?!~|=>|->|-|#|import|using|if|elif|else|while|match|when|set|do!|do\\s|\\w+:)",
+          "end": "$",
+          "patterns": [
+            {
+              "include": "#id-tag"
+            },
+            {
+              "include": "#text-content"
+            }
+          ]
+        }
+      ]
+    },
+    "id-tag": {
+      "patterns": [
+        {
+          "name": "punctuation.definition.tag.dialogue",
+          "match": "\\[ID:[^\\]]+\\]"
+        }
+      ]
+    },
+    "text-content": {
+      "patterns": [
+        {
+          "include": "#escapes"
+        },
+        {
+          "include": "#inline-conditions"
+        },
+        {
+          "include": "#inline-mutations"
+        },
+        {
+          "include": "#variable-interpolation"
+        },
+        {
+          "include": "#random-options"
+        },
+        {
+          "include": "#special-tags"
+        },
+        {
+          "include": "#tags"
+        },
+        {
+          "include": "#bbcode"
+        },
+        {
+          "include": "#plain-text"
+        }
+      ]
+    },
+    "plain-text": {
+      "patterns": [
+        {
+          "name": "string.unquoted.plain-text.dialogue",
+          "match": "[^\\[\\]{}\\\\|=>]+"
+        }
+      ]
+    },
+    "inline-conditions": {
+      "patterns": [
+        {
+          "name": "meta.condition.inline.if.dialogue",
+          "match": "(\\[)(if)\\s+(.+?)(\\])",
+          "captures": {
+            "1": {
+              "name": "punctuation.section.embedded.begin.dialogue"
+            },
+            "2": {
+              "name": "keyword.control.conditional.dialogue"
+            },
+            "3": {
+              "patterns": [
+                {
+                  "include": "#expression"
+                }
+              ]
+            },
+            "4": {
+              "name": "punctuation.section.embedded.end.dialogue"
+            }
+          }
+        },
+        {
+          "name": "meta.condition.inline.elif.dialogue",
+          "match": "(\\[)(elif)\\s+(.+?)(\\])",
+          "captures": {
+            "1": {
+              "name": "punctuation.section.embedded.begin.dialogue"
+            },
+            "2": {
+              "name": "keyword.control.conditional.dialogue"
+            },
+            "3": {
+              "patterns": [
+                {
+                  "include": "#expression"
+                }
+              ]
+            },
+            "4": {
+              "name": "punctuation.section.embedded.end.dialogue"
+            }
+          }
+        },
+        {
+          "name": "meta.condition.inline.else.dialogue",
+          "match": "(\\[)(else)(\\])",
+          "captures": {
+            "1": {
+              "name": "punctuation.section.embedded.begin.dialogue"
+            },
+            "2": {
+              "name": "keyword.control.conditional.else.dialogue"
+            },
+            "3": {
+              "name": "punctuation.section.embedded.end.dialogue"
+            }
+          }
+        },
+        {
+          "name": "meta.condition.inline.endif.dialogue",
+          "match": "(\\[)(endif)(\\])",
+          "captures": {
+            "1": {
+              "name": "punctuation.section.embedded.begin.dialogue"
+            },
+            "2": {
+              "name": "keyword.control.conditional.endif.dialogue"
+            },
+            "3": {
+              "name": "punctuation.section.embedded.end.dialogue"
+            }
+          }
+        }
+      ]
+    },
+    "inline-mutations": {
+      "patterns": [
+        {
+          "name": "meta.mutation.inline.set.dialogue",
+          "match": "(\\[)(set)\\s+([^=]+)(=|\\+=|-=|\\*=|/=)\\s*(.+?)(\\])",
+          "captures": {
+            "1": {
+              "name": "punctuation.section.embedded.begin.dialogue"
+            },
+            "2": {
+              "name": "keyword.control.set.dialogue"
+            },
+            "3": {
+              "patterns": [
+                {
+                  "include": "#variable-reference"
+                }
+              ]
+            },
+            "4": {
+              "name": "keyword.operator.assignment.dialogue"
+            },
+            "5": {
+              "patterns": [
+                {
+                  "include": "#expression"
+                }
+              ]
+            },
+            "6": {
+              "name": "punctuation.section.embedded.end.dialogue"
+            }
+          }
+        },
+        {
+          "name": "meta.mutation.inline.do.dialogue",
+          "match": "(\\[)(while|match|when|do!?)\\s+(.+?)(\\])",
+          "captures": {
+            "1": {
+              "name": "punctuation.section.embedded.begin.dialogue"
+            },
+            "2": {
+              "name": "keyword.control.do.dialogue"
+            },
+            "3": {
+              "patterns": [
+                {
+                  "include": "#expression"
+                }
+              ]
+            },
+            "4": {
+              "name": "punctuation.section.embedded.end.dialogue"
+            }
+          }
+        }
+      ]
+    },
+    "random-options": {
+      "patterns": [
+        {
+          "name": "meta.random-options.dialogue",
+          "begin": "\\[\\[",
+          "end": "\\]\\]",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.section.embedded.begin.dialogue"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.section.embedded.end.dialogue"
+            }
+          },
+          "patterns": [
+            {
+              "name": "string.interpolated.option.dialogue",
+              "match": "[^|\\]]+"
+            },
+            {
+              "name": "punctuation.separator.pipe.dialogue",
+              "match": "\\|"
+            }
+          ]
+        }
+      ]
+    },
+    "special-tags": {
+      "patterns": [
+        {
+          "comment": "成对的特殊标签（如 [wave]...[/wave]）",
+          "name": "entity.name.tag.pair.dialogue",
+          "begin": "\\[([a-zA-Z_][a-zA-Z0-9_]*)\\]",
+          "end": "\\[/(\\1)\\]",
+          "beginCaptures": {
+            "0": {
+              "name": "entity.name.tag.special.dialogue"
+            },
+            "1": {
+              "name": "keyword.control.tag.dialogue"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "entity.name.tag.special.dialogue"
+            },
+            "1": {
+              "name": "keyword.control.tag.dialogue"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#special-tags"
+            },
+            {
+              "include": "#text-content"
+            }
+          ]
+        },
+        {
+          "comment": "带值的特殊标签（如 [wait=1]）",
+          "name": "entity.name.tag.special.dialogue",
+          "match": "\\[([a-zA-Z_][a-zA-Z0-9_]*)\\s*=\\s*([^\\]]+)\\]",
+          "captures": {
+            "1": {
+              "name": "variable.parameter.tag-key.dialogue"
+            },
+            "2": {
+              "patterns": [
+                {
+                  "include": "#numbers"
+                },
+                {
+                  "include": "#strings"
+                },
+                {
+                  "name": "string.unquoted.tag-value.dialogue",
+                  "match": ".+"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "variable-interpolation": {
+      "patterns": [
+        {
+          "name": "meta.variable-interpolation.dialogue",
+          "begin": "(\\{\\{)",
+          "end": "(\\}\\})",
+          "beginCaptures": {
+            "1": {
+              "name": "punctuation.definition.template-expression.begin.dialogue"
+            }
+          },
+          "endCaptures": {
+            "1": {
+              "name": "punctuation.definition.template-expression.end.dialogue"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#expression"
+            }
+          ]
+        }
+      ]
+    },
+    "expression": {
+      "patterns": [
+        {
+          "include": "#strings"
+        },
+        {
+          "include": "#numbers"
+        },
+        {
+          "include": "#booleans"
+        },
+        {
+          "include": "#function-calls"
+        },
+        {
+          "include": "#operators"
+        },
+        {
+          "include": "#variable-reference"
+        }
+      ]
+    },
+    "function-calls": {
+      "patterns": [
+        {
+          "name": "meta.function-call.dialogue",
+          "begin": "([a-zA-Z_][a-zA-Z0-9_]*(?:\\.[a-zA-Z_][a-zA-Z0-9_]*)*)\\s*(\\()",
+          "end": "(\\))",
+          "beginCaptures": {
+            "1": {
+              "name": "entity.name.function"
+            },
+            "2": {
+              "name": "punctuation.section.embedded.end.dialogue"
+            }
+          },
+          "endCaptures": {
+            "1": {
+              "name": "punctuation.section.embedded.end.dialogue"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#expression"
+            },
+            {
+              "name": "punctuation.separator",
+              "match": ","
+            }
+          ]
+        }
+      ]
+    },
+    "variable-reference": {
+      "patterns": [
+        {
+          "name": "variable.other.property.dialogue",
+          "match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)(?:\\.[a-zA-Z_][a-zA-Z0-9_]*)*\\b"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.comparison.dialogue",
+          "match": "==|!=|<=|>=|<|>|\\bin\\b"
+        },
+        {
+          "name": "keyword.operator.logical.dialogue",
+          "match": "\\band\\b|\\bor\\b|\\bnot\\b"
+        },
+        {
+          "name": "keyword.operator.arithmetic.dialogue",
+          "match": "\\+|-|\\*|/|%"
+        },
+        {
+          "name": "keyword.operator.assignment.dialogue",
+          "match": "=|\\+=|-=|\\*=|/="
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.dialogue",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.dialogue",
+              "match": "\\\\."
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.single.dialogue",
+          "begin": "'",
+          "end": "'",
+          "patterns": [
+            {
+              "name": "constant.character.escape.dialogue",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.dialogue",
+          "match": "\\b\\d+\\.?\\d*\\b"
+        }
+      ]
+    },
+    "booleans": {
+      "patterns": [
+        {
+          "name": "constant.language.boolean.dialogue",
+          "match": "\\b(true|false)\\b"
+        }
+      ]
+    },
+    "tags": {
+      "patterns": [
+        {
+          "comment": "带参数的标签: [#tag] 或 [#tag=value] 或 [#tag1=v1,tag2=v2]",
+          "name": "entity.name.tag.dialogue",
+          "begin": "\\[(#)",
+          "end": "\\]",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.template-expression.begin.dialogue"
+            },
+            "2": {
+              "name": "punctuation.definition.template-expression.begin.dialogue"
+            }
+          },
+          "endCaptures": {
+            "1": {
+              "name": "punctuation.definition.template-expression.end.dialogue"
+            }
+          },
+          "patterns": [
+            {
+              "comment": "标签参数: key=value",
+              "match": "([a-zA-Z_][a-zA-Z0-9_]*)\\s*(=)\\s*([^,\\]]+)",
+              "captures": {
+                "1": {
+                  "name": "keyword.control.random.dialogue"
+                },
+                "2": {
+                  "name": "keyword.control.random.dialogue"
+                },
+                "3": {
+                  "patterns": [
+                    {
+                      "include": "#numbers"
+                    },
+                    {
+                      "include": "#strings"
+                    },
+                    {
+                      "name": "string.unquoted.tag-value.dialogue",
+                      "match": ".+"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "comment": "标签名（无参数）",
+              "name": "variable.parameter.tag-name.dialogue",
+              "match": "[a-zA-Z_][a-zA-Z0-9_]*",
+              "captures": {
+                "0": {
+                  "name": "keyword.control.random.dialogue"
+                }
+              }
+            },
+            {
+              "comment": "逗号分隔符",
+              "name": "punctuation.separator.comma.dialogue",
+              "match": ","
+            }
+          ]
+        }
+      ]
+    },
+    "escapes": {
+      "patterns": [
+        {
+          "name": "constant.character.escape.dialogue",
+          "match": "\\\\[:\"'\\[\\]{}]"
+        }
+      ]
+    },
+    "bbcode": {
+      "patterns": [
+        {
+          "name": "markup.raw.bbcode.dialogue",
+          "match": "\\[/?(?!if|elif|else|endif|do|set|#|ID:)[\\w]+(?:=[^\\]]+)?\\]"
+        }
+      ]
+    }
+  }
+}

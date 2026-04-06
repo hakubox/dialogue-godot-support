@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "module": "Node16",
+    "target": "ES2022",
+    "lib": ["ES2022"],  // 只保留 ES2022，移除 DOM
+    "sourceMap": true,
+    "rootDir": "src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "moduleResolution": "Node16",
+    "outDir": "out",
+    "types": ["node"]  // 添加这一行
+  },
+  "exclude": ["node_modules", ".vscode-test"]
+}

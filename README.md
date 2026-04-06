@@ -2,7 +2,9 @@
 
 一个为 Godot Engine 的 Dialogue Manager [<sup>1</sup>](https://github.com/hakubox/godot_dialogue_manager) 插件提供完整开发支持的 VSCode 扩展。
 
-!Extension Icon [<sup>2</sup>](icon.png)
+<p align="center">
+  <img src="icon.png" alt="Logo" width="200"/>
+</p>
 
 ---
 

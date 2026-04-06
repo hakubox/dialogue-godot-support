@@ -351,9 +351,5 @@ MIT License - 详见 LICENSE [<sup>4</sup>](LICENSE) 文件
 ## 📧 联系方式
 
 - GitHub Issues: 提交问题 [<sup>7</sup>](https://github.com/hakubox/issues)
-- 作者: Your Name
-- 邮箱: your.email@example.com
-
----
-
-**享受愉快的对话编写体验！** 🎮✨
+- 作者: hakubox
+- 邮箱: hakubox@outlook.com

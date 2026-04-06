@@ -17,6 +17,7 @@ interface GodotClass {
 	methods: GodotMethod[]; // 方法列表
 	properties: GodotProperty[]; // 属性列表
 	signals: string[];      // 信号列表
+	classComment?: string;  // 类级别的文档注释
 }
 
 /** 方法信息 */
@@ -291,7 +292,7 @@ export function activate(context: vscode.ExtensionContext) {
 	const diagnosticCollection = vscode.languages.createDiagnosticCollection('dialogue');
 	context.subscriptions.push(diagnosticCollection);
 
-	const diagnosticProvider = new GodotDiagnosticProvider(classCache, diagnosticCollection);
+	const diagnosticProvider = new GodotDiagnosticProvider(classCache, diagnosticCollection, titleManager);
 
 	context.subscriptions.push(
 		vscode.workspace.onDidOpenTextDocument(doc => {
@@ -314,7 +315,7 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.languages.registerCodeActionsProvider(
 			{ scheme: 'file', language: 'dialogue' },
-			new GodotCodeActionProvider(classCache, diagnosticCollection),
+			new GodotCodeActionProvider(classCache, diagnosticCollection, titleManager),
 			{
 				providedCodeActionKinds: [
 					vscode.CodeActionKind.QuickFix,
@@ -715,6 +716,8 @@ class GodotClassCache {
 			const content = fs.readFileSync(fsPath, 'utf-8');
 			const lines = content.split('\n');
 
+			classInfo.classComment = this.extractClassComment(lines);
+
 			let pendingDocComment: string | undefined;
 
 			for (let i = 0; i < lines.length; i++) {
@@ -753,6 +756,31 @@ class GodotClassCache {
 		} catch (error) {
 			console.error(`[Dialogue] ❌ 解析文件失败: ${fsPath}`, error);
 		}
+	}
+
+	/**
+	 * 提取文件顶部的类注释（连续的 ##）
+	 */
+	private extractClassComment(lines: string[]): string | undefined {
+		const comments: string[] = [];
+		let started = false;
+		for (const line of lines) {
+			const trimmed = line.trim();
+			// ✅ 遇到第一个 ## 时开始收集
+			if (trimmed.startsWith('##')) {
+				started = true;
+				const text = trimmed.substring(2).trim();
+				if (text) {  // 跳过空注释行
+					comments.push(text);
+				}
+				continue;
+			}
+			// ✅ 遇到非注释行时停止
+			if (started && trimmed && !trimmed.startsWith('#')) {
+				break;
+			}
+		}
+		return comments.length > 0 ? comments.join('\n') : undefined;
 	}
 
 	/**
@@ -911,8 +939,8 @@ class GodotCompletionProvider implements vscode.CompletionItemProvider {
 		}
 
 		// ✅ **新增：检测是否在角色对话中（角色: 对话内容）**
-		// 匹配：Nathan: 你好
-		// 不匹配：do Nathan.method()
+		// 匹配：NPC: 你好
+		// 不匹配：do NPC.method()
 		if (/^\s*\w+:\s+[^[{]*$/.test(beforeCursor) && !/^\s*(?:do!?|set|if|elif|while|match|when)\s+/.test(beforeCursor)) {
 			console.log('[Dialogue] ⚠️ 在对话文本中，跳过 Godot 补全');
 			return [];
@@ -1165,20 +1193,36 @@ class GodotCompletionProvider implements vscode.CompletionItemProvider {
 			const item = new vscode.CompletionItem(cls.name, vscode.CompletionItemKind.Class);
 			item.detail = `extends ${cls.base}`;
 
-			const docs: string[] = [
-				`**Base Class:** ${cls.base}`,
-				`**Path:** \`${cls.path}\``,
-			];
+			const docs: string[] = [];
 
-			if (this.classCache.isAutoload(cls.name)) {
-				docs.push('\n🌐 **AutoLoad Singleton**');
+			// 显示类注释
+			if (cls.classComment) {
+				docs.push('');
+				const _comments = cls.classComment.split('\n');
+				for (let i = 0; i < _comments.length; i++) {
+					const _comment = _comments[i];
+					docs.push(_comment);
+					docs.push('');
+				}
+				docs.push('---');
+				docs.push('');
 			}
 
-			// ✅ 添加方法和属性概览
+			docs.push(`**Base Class:** \`${cls.base}\``);
+			docs.push('');
+			docs.push(`**Path:** \`${cls.path}\``);
+
+			if (this.classCache.isAutoload(cls.name)) {
+				docs.push('');
+				docs.push('🌐 **AutoLoad Singleton**');
+			}
+
+			// 添加方法和属性概览
 			if (cls.methods.length > 0) {
 				const publicMethods = cls.methods.filter(m => !m.name.startsWith('_'));
 				if (publicMethods.length > 0) {
-					docs.push(`\n**Methods:** ${publicMethods.length} public methods`);
+					docs.push('');
+					docs.push(`**Methods:** ${publicMethods.length} public methods`);
 				}
 			}
 
@@ -1308,9 +1352,6 @@ class GodotCompletionProvider implements vscode.CompletionItemProvider {
 }
 
 // ============ 悬停提示提供者 ============
-
-// ============ 悬停提示提供者 ============
-
 class GodotHoverProvider implements vscode.HoverProvider {
 	constructor(private classCache: GodotClassCache) { }
 
@@ -1431,15 +1472,28 @@ class GodotHoverProvider implements vscode.HoverProvider {
 
 		const docs: string[] = [
 			`## ${cls.name}`,
-			`**Extends:** \`${cls.base}\``,
-			`**Path:** \`${cls.path}\``,
 		];
+
+		// 显示类注释
+		if (cls.classComment) {
+			docs.push('');
+			const _comments = cls.classComment.split('\n');
+			for (let i = 0; i < _comments.length; i++) {
+				const _comment = _comments[i];
+				docs.push(_comment);
+				docs.push('');
+			}
+			docs.push('---');
+			docs.push('');
+		}
+
+		docs.push(`**Base Class:** \`${cls.base}\``);
+		docs.push('');
+		docs.push(`**Path:** \`${cls.path}\``);
 
 		if (this.classCache.isAutoload(className)) {
 			docs.push('\n🌐 **Global Singleton (AutoLoad)**');
 		}
-
-		// ✅ 移除方法和属性列表（根据你的要求 2）
 
 		return new vscode.Hover(new vscode.MarkdownString(docs.join('\n')));
 	}
@@ -1527,7 +1581,6 @@ class GodotHoverProvider implements vscode.HoverProvider {
 }
 
 // ============ 参数提示提供者 ============
-
 class GodotSignatureHelpProvider implements vscode.SignatureHelpProvider {
 	constructor(private classCache: GodotClassCache) { }
 
@@ -1638,7 +1691,6 @@ class GodotSignatureHelpProvider implements vscode.SignatureHelpProvider {
 }
 
 // ============ 定义跳转提供者 ============
-
 class GodotDefinitionProvider implements vscode.DefinitionProvider {
 	constructor(private classCache: GodotClassCache) { }
 
@@ -1946,7 +1998,8 @@ class GodotDiagnosticProvider {
 
 	constructor(
 		private classCache: GodotClassCache,
-		private diagnosticCollection: vscode.DiagnosticCollection
+		private diagnosticCollection: vscode.DiagnosticCollection,
+		private titleManager: TitleManager
 	) { }
 
 	/**
@@ -2054,9 +2107,72 @@ class GodotDiagnosticProvider {
 					diagnostics
 				);
 			}
+
+			// 2. 检查段落跳转
+			this.checkTitleJumps(line, lineIndex, document, diagnostics);
 		}
 		console.log(`[Dialogue] 📊 发现 ${diagnostics.length} 个问题`);
 		this.diagnosticCollection.set(document.uri, diagnostics);
+	}
+
+	/**
+	 * 检查段落跳转是否有效
+	 */
+	private checkTitleJumps(
+		line: string,
+		lineIndex: number,
+		document: vscode.TextDocument,
+		diagnostics: vscode.Diagnostic[]
+	): void {
+		// 匹配 goto 语句：=> title 或 - option => title
+		const gotoPatterns = [
+			/^\s*=>\s+(\S+)/,           // => title
+			/^\s*-\s+[^=>]+=>\s+(\S+)/, // - option => title
+		];
+
+		for (const pattern of gotoPatterns) {
+			const match = line.match(pattern);
+			if (!match) continue;
+
+			const rawTitle = match[1];  // 例如：END! 或 battle
+			// ✅ 新增：去除末尾的 ! 符号
+			const targetTitle = rawTitle.replace(/!$/, '');
+
+			// ✅ 跳过 END（特殊标记）
+			if (targetTitle.toUpperCase() === 'END') continue;
+
+			console.log(`[Dialogue] 🔍 检查段落跳转: ${targetTitle}`);
+
+			// 检查是否是 Import 引用（OtherFile/title）
+			const isImportRef = targetTitle.includes('/');
+
+			if (isImportRef) {
+				// 暂时跳过 Import 引用的检查（需要跨文件分析）
+				console.log(`[Dialogue] 💡 跳过 Import 引用: ${targetTitle}`);
+				continue;
+			}
+
+			const titleInfo = this.titleManager.findTitle(document.uri, targetTitle);
+
+			if (!titleInfo) {
+				const titleStart = line.indexOf(rawTitle);
+				const range = new vscode.Range(
+					lineIndex,
+					titleStart,
+					lineIndex,
+					titleStart + rawTitle.length
+				);
+
+				diagnostics.push(
+					this.createDiagnostic(
+						range,
+						`⚠️ 未找到段落: ${targetTitle}`,
+						vscode.DiagnosticSeverity.Error,
+						'请检查段落名是否正确，或创建该段落'
+					)
+				);
+			}
+		}
 	}
 
 	/**
@@ -2685,7 +2801,8 @@ class GodotDiagnosticProvider {
 class GodotCodeActionProvider implements vscode.CodeActionProvider {
 	constructor(
 		private classCache: GodotClassCache,
-		private diagnosticCollection: vscode.DiagnosticCollection
+		private diagnosticCollection: vscode.DiagnosticCollection,
+		private titleManager: TitleManager
 	) { }
 
 	provideCodeActions(
@@ -2719,6 +2836,74 @@ class GodotCodeActionProvider implements vscode.CodeActionProvider {
 			if (diagnostic.message.startsWith('参数类型不匹配')) {
 				actions.push(...this.createParameterTypeFixes(document, diagnostic));
 			}
+
+			// ✅ 新增：修复段落跳转错误
+			if (diagnostic.message.startsWith('⚠️ 未找到段落:')) {
+				actions.push(...this.createTitleJumpFixes(document, diagnostic));
+			}
+		}
+
+		return actions;
+	}
+
+	/**
+	 * 修复段落跳转错误
+	 */
+	private createTitleJumpFixes(
+		document: vscode.TextDocument,
+		diagnostic: vscode.Diagnostic
+	): vscode.CodeAction[] {
+		const actions: vscode.CodeAction[] = [];
+		const rawTitle = document.getText(diagnostic.range);  // 例如：END! 或 bbb
+
+		// 去除末尾的 ! 符号
+		const wrongTitle = rawTitle.replace(/!$/, '');
+
+		console.log(`[Dialogue] 🔧 生成段落跳转修复建议: ${rawTitle} -> ${wrongTitle}`);
+
+		// 建议 1：创建新段落
+		const createFix = new vscode.CodeAction(
+			`创建段落 '${wrongTitle}'`,
+			vscode.CodeActionKind.QuickFix
+		);
+
+		createFix.edit = new vscode.WorkspaceEdit();
+
+		// 在文档末尾添加段落
+		const lastLine = document.lineCount;
+		const insertPosition = new vscode.Position(lastLine, 0);
+		const newTitle = `\n~ ${wrongTitle}\n\nNPC: (待补充对话)\n\n=> END\n`;
+
+		createFix.edit.insert(document.uri, insertPosition, newTitle);
+		createFix.diagnostics = [diagnostic];
+		createFix.isPreferred = true;
+
+		actions.push(createFix);
+
+		// 查找相似段落名
+		const allTitles = this.titleManager.getTitles(document.uri).map(t => t.name);
+		const suggestions = allTitles
+			.map(title => ({
+				name: title,
+				distance: this.levenshteinDistance(wrongTitle.toLowerCase(), title.toLowerCase())
+			}))
+			.filter(s => s.distance <= 3)
+			.sort((a, b) => a.distance - b.distance)
+			.slice(0, 5);
+
+		for (const suggestion of suggestions) {
+			const fix = new vscode.CodeAction(
+				`将 '${wrongTitle}' 改为 '${suggestion.name}'`,
+				vscode.CodeActionKind.QuickFix
+			);
+
+			fix.edit = new vscode.WorkspaceEdit();
+			// 如果原始名称有 !，保留它
+			const newName = rawTitle.endsWith('!') ? `${suggestion.name}!` : suggestion.name;
+			fix.edit.replace(document.uri, diagnostic.range, newName);
+			fix.diagnostics = [diagnostic];
+
+			actions.push(fix);
 		}
 
 		return actions;

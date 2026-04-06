@@ -60,7 +60,7 @@ import "res://dialogues/chapter1/scene_a.dialogue" as SceneA
 - 参数类型提示
 
 ```dialogue
-Nathan: 你好[wait=1.5]，欢迎！  # ← 输入 [ 自动提示标签
+NPC: 你好[wait=1.5]，欢迎！  # ← 输入 [ 自动提示标签
 这是[wave]波浪文字[/wave]      # ← 成对标签自动补全
 ```
 
@@ -110,6 +110,24 @@ Nathan: 你好[wait=1.5]，欢迎！  # ← 输入 [ 自动提示标签
 - 标签用途说明和示例
 - 参数类型和取值范围
 - 当前值验证
+
+---
+
+### ⚙️ 高级配置
+
+#### 全局成员访问（无需类名前缀）
+
+在 VSCode 的 `settings.json` 中配置：
+
+```json
+{
+  "dialogue.diagnostics.globalClasses": [
+    "PlayerState",
+    "AudioManager",
+    "SaveManager"
+  ]
+}
+```
 
 ---
 
@@ -183,7 +201,7 @@ Nathan: 你好[wait=1.5]，欢迎！  # ← 输入 [ 自动提示标签
 ~ start
 # 开场对话
 
-Nathan: 你好，欢迎来到这个世界！[#happy]
+NPC: 你好，欢迎来到这个世界！[#happy]
 这是一段旁白文字。
 
 Sophie: 我是 Sophie，很高兴认识你。[#neutral]
@@ -196,11 +214,11 @@ Sophie: 我是 Sophie，很高兴认识你。[#neutral]
 ~ check_level
 
 if PlayerState.level >= 5
-	Nathan: 你的等级很高啊！[wave]真厉害[/wave]
+	NPC: 你的等级很高啊！[wave]真厉害[/wave]
 elif PlayerState.level >= 3
-	Nathan: 你还需要多加努力。
+	NPC: 你还需要多加努力。
 else
-	Nathan: 新手村欢迎你！
+	NPC: 新手村欢迎你！
 
 set PlayerState.gold += 100
 do AudioManager.play_sfx("coin")
@@ -214,7 +232,7 @@ import "res://dialogues/common.dialogue" as Common
 import "res://dialogues/chapter1.dialogue" as Ch1
 
 ~ start
-Nathan: 让我们开始冒险吧！
+NPC: 让我们开始冒险吧！
 
 - 前往第一章 => Ch1/intro
 - 查看通用对话 => Common/help
@@ -229,7 +247,7 @@ Nathan: 让我们开始冒险吧！
 ```dialogue
 ~ choice_example
 
-Nathan: 你想要什么？
+NPC: 你想要什么？
 
 - 我要金币 => give_gold [if PlayerState.can_afford(50)]
 - 我要装备 => give_equipment
@@ -237,12 +255,12 @@ Nathan: 你想要什么？
 
 ~ give_gold
 do PlayerState.add_gold(100)
-Nathan: 给你 100 金币！
+NPC: 给你 100 金币！
 => END!
 
 ~ give_equipment
 do! InventoryManager.add_item("sword")
-Nathan: 这把剑送给你。
+NPC: 这把剑送给你。
 => END
 ```
 
@@ -275,7 +293,7 @@ Nathan: 这把剑送给你。
 
 ### 核心语法
 - ✅ 段落定义（`~ title`）
-- ✅ 角色对话（`Nathan: 对话内容`）
+- ✅ 角色对话（`NPC: 对话内容`）
 - ✅ 旁白（直接文本）
 - ✅ 选项（`- 选项文本 => target`）
 - ✅ 跳转（`=> title`、`=> END`）
@@ -345,7 +363,7 @@ MIT License - 详见 LICENSE [<sup>4</sup>](LICENSE) 文件
 ## 🙏 致谢
 
 - Godot Engine [<sup>5</sup>](https://godotengine.org/)
-- Dialogue Manager Plugin [<sup>1</sup>](https://github.com/nathanhoad/godot_dialogue_manager) by Nathan Hoad
+- Dialogue Manager Plugin [<sup>1</sup>](https://github.com/NPChoad/godot_dialogue_manager) by NPC Hoad
 - VSCode Extension API [<sup>6</sup>](https://code.visualstudio.com/api)
 
 ---

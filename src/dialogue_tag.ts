@@ -15,6 +15,20 @@ export interface DialogueTag {
 	category: 'time' | 'audio' | 'effect' | 'ui';  // 分类
 }
 
+// ============ 关键词定义 (仅用于悬停提示) ============
+const DIALOGUE_KEYWORDS: Record<string, { description: string; example: string }> = {
+  '~': { description: '定义一个对话段落的开始（标题）。', example: '~ start' },
+  '=>': { description: '跳转到指定的对话标题。', example: '=> next_scene\n=> END!' },
+  'do': { description: '执行一个 Godot 表达式或方法。', example: 'do PlayerState.add_gold(100)' },
+  'set': { description: '修改变量或属性的值。', example: 'set player_health = 100' },
+  'while': { description: '当条件为真时，重复执行下方缩进的块。', example: 'while count < 3:' },
+  'match': { description: '根据表达式的值执行对应的 when 分支。', example: 'match player_class:' },
+  'when': { description: 'match 语句的具体条件分支。', example: 'when warrior:' },
+  '{{': { description: '变量插值开始，嵌入 Godot 表达式。', example: '你有 {{gold}} 金币。' },
+  '}}': { description: '变量插值结束。', example: '你有 {{gold}} 金币。' },
+  '%': { description: '随机选项的权重（如 %2 概率是 %1 的两倍）。', example: '% 结果1。\n%2 结果2。\n%2 结果3。' }
+};
+
 export const DIALOGUE_TAGS: DialogueTag[] = [
   // ============ 时间控制 ============
   {
@@ -285,7 +299,36 @@ export class DialogueTagHoverProvider implements vscode.HoverProvider {
 	): Promise<vscode.Hover | undefined> {
 		const line = document.lineAt(position.line).text;
 
-		console.log('[Dialogue] ========== 标签悬停被触发 ==========');
+    console.log('[Dialogue] ========== 标签/关键词悬停被触发 ==========');
+
+		// ✅ 新增：检测特殊关键词 (~, =>, {{, }}, %, while, do, set 等)
+		const keywordRange = document.getWordRangeAtPosition(
+			position,
+			/~|=>|\{\{|\}\}|%\d*|\b(?:while|do!?|set|match|when)\b/
+		);
+
+		if (keywordRange) {
+			let word = document.getText(keywordRange);
+			
+			// 兼容处理：将 do! 视为 do，将 %1, %2 视为 %
+			if (word === 'do!') word = 'do';
+			if (word.startsWith('%')) word = '%';
+
+			const kwDef = DIALOGUE_KEYWORDS[word];
+			if (kwDef) {
+				console.log(`[Dialogue] 🔍 找到关键词: ${word}`);
+				const docs: string[] = [];
+				docs.push(`## 🔑 ${word}`);
+				docs.push('');
+				docs.push(`**描述:** ${kwDef.description}`);
+				docs.push('');
+				docs.push('**示例:**');
+				docs.push('```dialogue');
+				docs.push(kwDef.example);
+				docs.push('```');
+				return new vscode.Hover(new vscode.MarkdownString(docs.join('\n')));
+			}
+		}
 
 		// ✅ 匹配光标位置的标签
 		const tagRegex = /\[(\/?[a-zA-Z_][a-zA-Z0-9_]*)(?:=([^\]]+))?\]/g;

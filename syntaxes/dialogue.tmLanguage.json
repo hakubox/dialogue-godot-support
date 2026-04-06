@@ -16,9 +16,6 @@
       "include": "#titles"
     },
     {
-      "include": "#block-conditions"
-    },
-    {
       "include": "#block-mutations"
     },
     {
@@ -97,35 +94,11 @@
         }
       ]
     },
-    "block-conditions": {
-      "patterns": [
-        {
-          "name": "meta.block-condition.dialogue",
-          "match": "^\\s*(if|elif|while|when|match)\\s+(.+)$",
-          "captures": {
-            "1": {
-              "name": "keyword.control.conditional.dialogue"
-            },
-            "2": {
-              "patterns": [
-                {
-                  "include": "#expression"
-                }
-              ]
-            }
-          }
-        },
-        {
-          "name": "keyword.control.conditional.else.dialogue",
-          "match": "^\\s*(else)\\s*$"
-        }
-      ]
-    },
     "block-mutations": {
       "patterns": [
         {
           "name": "meta.block-mutation.do.dialogue",
-          "match": "^\\s*(do!?)\\s+(.+)$",
+          "match": "^\\s*(do!?|set|while|when|match)\\s+(.+)$",
           "captures": {
             "1": {
               "name": "keyword.control.do.dialogue"
@@ -300,9 +273,9 @@
           "match": "^\\s*(%)\\s*$"
         },
         {
-          "comment": "随机对话（带权重）: %2 角色: 对话",
-          "name": "meta.character-line.random.weighted.dialogue",
-          "begin": "^\\s*(%)([0-9]+)\\s+((?:\\{\\{[^}]+\\}\\}|[^:\\[\\]\\s{}]+))\\s*(:)\\s*",
+          "comment": "通用对话行（自动兼容 %、权重、角色名、纯文本）",
+          "name": "meta.character-line.dialogue",
+          "begin": "^\\s*(?:(%)([0-9]*)\\s+)?(?:((?:\\{\\{[^}]+\\}\\}|[^:\\[\\]\\s{}]+))\\s*(:)\\s*)?(?=\\S)",
           "end": "$",
           "beginCaptures": {
             "1": {
@@ -323,69 +296,6 @@
               ]
             },
             "4": {
-              "name": "keyword.operator.colon.dialogue"
-            }
-          },
-          "patterns": [
-            {
-              "include": "#id-tag"
-            },
-            {
-              "include": "#text-content"
-            }
-          ]
-        },
-        {
-          "comment": "随机对话（默认权重）: % 角色: 对话",
-          "name": "meta.character-line.random.single.dialogue",
-          "begin": "^\\s*(%)\\s+((?:\\{\\{[^}]+\\}\\}|[^:\\[\\]\\s{}]+))\\s*(:)\\s*",
-          "end": "$",
-          "beginCaptures": {
-            "1": {
-              "name": "keyword.control.random.dialogue"
-            },
-            "2": {
-              "patterns": [
-                {
-                  "include": "#variable-interpolation"
-                },
-                {
-                  "name": "entity.name.type.character.dialogue",
-                  "match": "[^:\\s{}]+"
-                }
-              ]
-            },
-            "3": {
-              "name": "keyword.operator.colon.dialogue"
-            }
-          },
-          "patterns": [
-            {
-              "include": "#id-tag"
-            },
-            {
-              "include": "#text-content"
-            }
-          ]
-        },
-        {
-          "comment": "普通角色对话: 角色: 对话",
-          "name": "meta.character-line.dialogue",
-          "begin": "^\\s*((?:\\{\\{[^}]+\\}\\}|[^:\\[\\]\\s{}]+))\\s*(:)\\s*",
-          "end": "$",
-          "beginCaptures": {
-            "1": {
-              "patterns": [
-                {
-                  "include": "#variable-interpolation"
-                },
-                {
-                  "name": "entity.name.type.character.dialogue",
-                  "match": "[^:\\s{}]+"
-                }
-              ]
-            },
-            "2": {
               "name": "keyword.operator.colon.dialogue"
             }
           },
@@ -460,7 +370,7 @@
       "patterns": [
         {
           "name": "string.unquoted.plain-text.dialogue",
-          "match": "[^\\[\\]{}\\\\|=>]+"
+          "match": "[^\\[\\]{}\\\\|=>\\n]+"
         }
       ]
     },
@@ -635,7 +545,7 @@
           "comment": "成对的特殊标签（如 [wave]...[/wave]）",
           "name": "entity.name.tag.pair.dialogue",
           "begin": "\\[([a-zA-Z_][a-zA-Z0-9_]*)\\]",
-          "end": "\\[/(\\1)\\]",
+          "end": "\\[/(\\1)\\]|$",
           "beginCaptures": {
             "0": {
               "name": "entity.name.tag.special.dialogue"

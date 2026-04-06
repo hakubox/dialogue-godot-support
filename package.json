@@ -1,7 +1,7 @@
 {
   "name": "dialogue-godot-support",
-  "displayName": "dialogue-godot-support",
-  "description": "dialogue_manager的VSCode插件",
+  "displayName": "Godot Dialogue Manager 增强",
+  "description": "为 Godot 4.x Dialogue Manager 提供强大的 VSCode 支持，包括完整的语法高亮、Godot 类/方法的智能补全、实时类型检查、定义跳转、参数提示、标签补全和 Import 路径补全等功能。",
   "publisher": "hakubox",
   "version": "0.2.0",
   "icon": "icon.png",
@@ -17,7 +17,10 @@
     "vscode": "^1.110.0"
   },
   "categories": [
-    "Programming Languages"
+    "Programming Languages",
+    "Snippets",
+    "Formatters",
+    "Other"
   ],
   "activationEvents": [
   ],
@@ -128,6 +131,19 @@
       }
     ]
   },
+  "keywords": [
+    "godot",
+    "dialogue",
+    "game development",
+    "gdscript",
+    "dialogue manager",
+    "dialogue_manager"
+  ],
+  "tags": [
+    "godot",
+    "game-dev",
+    "dialogue"
+  ],
   "scripts": {
     "vscode:prepublish": "npm run package",
     "compile": "npm run check-types && npm run lint && node esbuild.js",

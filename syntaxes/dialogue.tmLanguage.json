@@ -726,6 +726,9 @@
           "include": "#function-calls"
         },
         {
+          "include": "#property-access"
+        },
+        {
           "include": "#operators"
         },
         {
@@ -733,32 +736,125 @@
         }
       ]
     },
+    "property-access": {
+      "patterns": [
+        {
+          "comment": "类属性访问: ClassName.property",
+          "name": "meta.property-access.class.dialogue",
+          "match": "\\b([A-Z][a-zA-Z0-9_]*)\\s*(\\.)\\s*([a-zA-Z_][a-zA-Z0-9_]*)(?!\\s*\\()",
+          "captures": {
+            "1": {
+              "name": "entity.name.type.class.dialogue"
+            },
+            "2": {
+              "name": "punctuation.accessor.dialogue"
+            },
+            "3": {
+              "name": "variable.other.property.dialogue"
+            }
+          }
+        },
+        {
+          "comment": "实例属性访问: instance.property",
+          "name": "meta.property-access.instance.dialogue",
+          "match": "\\b([a-z_][a-zA-Z0-9_]*)\\s*(\\.)\\s*([a-zA-Z_][a-zA-Z0-9_]*)(?!\\s*\\()",
+          "captures": {
+            "1": {
+              "name": "variable.other.object.dialogue"
+            },
+            "2": {
+              "name": "punctuation.accessor.dialogue"
+            },
+            "3": {
+              "name": "variable.other.property.dialogue"
+            }
+          }
+        }
+      ]
+    },
     "function-calls": {
       "patterns": [
         {
-          "name": "meta.function-call.dialogue",
-          "begin": "([a-zA-Z_][a-zA-Z0-9_]*(?:\\.[a-zA-Z_][a-zA-Z0-9_]*)*)\\s*(\\()",
+          "comment": "类方法调用: ClassName.method()",
+          "name": "meta.function-call.with-object.dialogue",
+          "begin": "\\b([A-Z][a-zA-Z0-9_]*)\\s*(\\.)\\s*([a-zA-Z_][a-zA-Z0-9_]*)\\s*(\\()",
           "end": "(\\))",
           "beginCaptures": {
             "1": {
-              "name": "entity.name.function"
+              "name": "entity.name.type.class.dialogue"
             },
             "2": {
-              "name": "punctuation.section.embedded.end.dialogue"
+              "name": "punctuation.accessor.dialogue"
+            },
+            "3": {
+              "name": "entity.name.function.dialogue"
+            },
+            "4": {
+              "name": "punctuation.section.parens.begin.dialogue"
             }
           },
           "endCaptures": {
             "1": {
-              "name": "punctuation.section.embedded.end.dialogue"
+              "name": "punctuation.section.parens.end.dialogue"
             }
           },
           "patterns": [
             {
               "include": "#expression"
+            }
+          ]
+        },
+        {
+          "comment": "实例方法调用: instance.method()",
+          "name": "meta.function-call.with-instance.dialogue",
+          "begin": "\\b([a-z_][a-zA-Z0-9_]*)\\s*(\\.)\\s*([a-zA-Z_][a-zA-Z0-9_]*)\\s*(\\()",
+          "end": "(\\))",
+          "beginCaptures": {
+            "1": {
+              "name": "variable.other.object.dialogue"
             },
+            "2": {
+              "name": "punctuation.accessor.dialogue"
+            },
+            "3": {
+              "name": "entity.name.function.dialogue"
+            },
+            "4": {
+              "name": "punctuation.section.parens.begin.dialogue"
+            }
+          },
+          "endCaptures": {
+            "1": {
+              "name": "punctuation.section.parens.end.dialogue"
+            }
+          },
+          "patterns": [
             {
-              "name": "punctuation.separator",
-              "match": ","
+              "include": "#expression"
+            }
+          ]
+        },
+        {
+          "comment": "普通函数调用: function()",
+          "name": "meta.function-call.simple.dialogue",
+          "begin": "\\b([a-z_][a-zA-Z0-9_]*)\\s*(\\()",
+          "end": "(\\))",
+          "beginCaptures": {
+            "1": {
+              "name": "entity.name.function.dialogue"
+            },
+            "2": {
+              "name": "punctuation.section.parens.begin.dialogue"
+            }
+          },
+          "endCaptures": {
+            "1": {
+              "name": "punctuation.section.parens.end.dialogue"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#expression"
             }
           ]
         }

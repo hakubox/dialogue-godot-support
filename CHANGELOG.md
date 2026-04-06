@@ -4,6 +4,6 @@ All notable changes to the "dialogue-godot-support" extension will be documented
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
-## [Unreleased]
+## [0.3.0]
 
-- Initial release
+- 修复代码高亮问题以及错误提示问题。

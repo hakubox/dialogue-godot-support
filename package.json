@@ -3,7 +3,7 @@
   "displayName": "Godot Dialogue Manager 增强",
   "description": "为 Godot 4.x Dialogue Manager 提供强大的 VSCode 支持，包括完整的语法高亮、Godot 类/方法的智能补全、实时类型检查、定义跳转、参数提示、标签补全和 Import 路径补全等功能。",
   "publisher": "hakubox",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "icon": "icon.png",
   "repository": {
     "type": "git",

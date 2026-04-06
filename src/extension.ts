@@ -376,6 +376,7 @@ class GodotClassCache {
 	private classes: Map<string, GodotClass> = new Map();
 	private autoloads: Map<string, string> = new Map(); // 单例名 -> 文件路径
 	private workspaceFolder?: vscode.WorkspaceFolder;
+	private cachedGlobalClassNames: string = '';
 
 	private globalMembers: Map<string, { className: string; type: 'method' | 'property' | 'signal' }> = new Map();
 
@@ -410,11 +411,27 @@ class GodotClassCache {
 	 * 从配置的全局类中提取所有公开成员
 	 */
 	private buildGlobalMembersIndex(): void {
-		this.globalMembers.clear();
 		// 获取配置的全局类列表
 		const config = vscode.workspace.getConfiguration('dialogue');
 		const globalClassNames: string[] = config.get('diagnostics.globalClasses', []);
-		console.log('[Dialogue] 🌐 配置的全局类:', globalClassNames);
+
+		// ✅ 优化：检查配置是否变化
+		const currentConfig = JSON.stringify(globalClassNames);
+		if (this.cachedGlobalClassNames === currentConfig && this.globalMembers.size > 0) {
+			console.log('[Dialogue] 🔄 配置未变化，跳过重建索引');
+			return;
+		}
+
+		console.log('[Dialogue] 🌐 配置已变化，重新构建全局成员索引');
+		console.log('[Dialogue] 📋 配置的全局类:', globalClassNames);
+
+		// 更新缓存
+		this.cachedGlobalClassNames = currentConfig;
+
+		// 清空旧索引
+		this.globalMembers.clear();
+
+		// ✅ 以下代码保持不变
 		for (const className of globalClassNames) {
 			const cls = this.classes.get(className);
 			if (!cls) {
@@ -456,7 +473,11 @@ class GodotClassCache {
 	 * ✅ 新增：刷新全局成员索引（配置变更时调用）
 	 */
 	refreshGlobalMembers(): void {
-		console.log('[Dialogue] 🔄 重新构建全局成员索引');
+		console.log('[Dialogue] 🔄 配置变更，触发索引刷新');
+
+		// ✅ 强制清除缓存，触发重建
+		this.cachedGlobalClassNames = '';
+
 		this.buildGlobalMembersIndex();
 	}
 
@@ -1685,50 +1706,66 @@ class GodotDiagnosticProvider {
 	 */
 	private performDiagnostics(document: vscode.TextDocument): void {
 		console.log('[Dialogue] ========== 开始诊断 ==========');
-
 		const diagnostics: vscode.Diagnostic[] = [];
 		const text = document.getText();
 		const lines = text.split('\n');
-
 		for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
 			const line = lines[lineIndex];
-
-			// ✅ 检查代码区域
-			const codePatterns = [
-				/^\s*(while|match|when|do!?)\s+(.+)$/,              // while/do 语句
-				/\[do!?\s+[^\]]+\]/g,
-				/\{\{(.+?)\}\}/g,                 // {{ }} 插值
-				/^\s*set\s+(.+)$/,               // set 语句
-				/\[set\s+[^\]]+\]/g,
-				/^\s*(?:if|elif)\s+(.+)$/,       // if/elif 条件
-				/\[(?:if|elif)\s+([^\]]+)\]/g,   // 行内条件
-			];
-
-			for (const pattern of codePatterns) {
-				let match;
-				const regex = new RegExp(pattern);
-
-				while ((match = regex.exec(line)) !== null) {
-					const codeContent = match[1] || match[0].replace(/^\[(?:do!?|set|if|elif)\s+/, '').replace(/\]$/, '');
-					const startIndex = match.index + match[0].indexOf(codeContent);
-
-					// ✅ 分析代码内容
-					this.analyzeCode(
-						codeContent,
-						document,
-						lineIndex,
-						startIndex,
-						diagnostics
-					);
-
-					// 如果不是全局正则，只匹配一次
-					if (!pattern.global) break;
-				}
+			// ✅ 统一的代码区域检测和提取
+			const codeBlocks = this.extractCodeBlocks(line, lineIndex);
+			for (const block of codeBlocks) {
+				this.analyzeCode(
+					block.code,
+					document,
+					lineIndex,
+					block.startColumn,
+					diagnostics
+				);
 			}
 		}
-
 		console.log(`[Dialogue] 📊 发现 ${diagnostics.length} 个问题`);
 		this.diagnosticCollection.set(document.uri, diagnostics);
+	}
+
+	/**
+	 * ✅ 新方法：提取一行中的所有代码块
+	 */
+	private extractCodeBlocks(
+		line: string,
+		lineIndex: number
+	): Array<{ code: string; startColumn: number }> {
+		const blocks: Array<{ code: string; startColumn: number }> = [];
+		// 1️⃣ 块级语句（优先级最高，避免与行内语法冲突）
+		const blockPatterns = [
+			{ regex: /^\s*(while|match|when|do!?)\s+(.+)$/, codeIndex: 2 },
+			{ regex: /^\s*set\s+(.+)$/, codeIndex: 1 },
+			{ regex: /^\s*(if|elif)\s+(.+)$/, codeIndex: 2 },
+		];
+		for (const { regex, codeIndex } of blockPatterns) {
+			const match = line.match(regex);
+			if (match) {
+				const code = match[codeIndex].trim();
+				const startColumn = line.indexOf(code);
+				blocks.push({ code, startColumn });
+				return blocks; // ✅ 块级语句独占一行，直接返回
+			}
+		}
+		// 2️⃣ 行内语法（可以有多个）
+		const inlinePatterns = [
+			/\[do!?\s+([^\]]+)\]/g,
+			/\[set\s+([^\]]+)\]/g,
+			/\[(?:if|elif)\s+([^\]]+)\]/g,
+			/\{\{([^}]+)\}\}/g,
+		];
+		for (const pattern of inlinePatterns) {
+			let match;
+			while ((match = pattern.exec(line)) !== null) {
+				const code = match[1].trim();
+				const startColumn = match.index + match[0].indexOf(code);
+				blocks.push({ code, startColumn });
+			}
+		}
+		return blocks;
 	}
 
 	/**
@@ -2479,7 +2516,7 @@ class GodotCodeActionProvider implements vscode.CodeActionProvider {
 		const conversions: { [key: string]: (val: string) => string } = {
 			'int': (val) => {
 				// 如果是字符串，去掉引号
-				if (/^"' [<sup>1</sup>](\d+)["']$/.test(val)) {
+				if (/^["']?\s?(\d+)["']?$/.test(val)) {
 					return val.replace(/["']/g, '');
 				}
 				// 如果是浮点数，转为 int(x)
@@ -2489,7 +2526,7 @@ class GodotCodeActionProvider implements vscode.CodeActionProvider {
 				return val;
 			},
 			'float': (val) => {
-				if (/^"' [<sup>2</sup>](\d+(?:\.\d+)?)["']$/.test(val)) {
+				if (/^["']?\s?(\d+(?:\.\d+)?)["']?$/.test(val)) {
 					return val.replace(/["']/g, '');
 				}
 				if (/^\d+$/.test(val)) {

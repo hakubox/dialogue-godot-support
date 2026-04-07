@@ -3,7 +3,7 @@
   "displayName": "Godot Dialogue Manager 增强",
   "description": "为 Godot 4.x Dialogue Manager 提供强大的 VSCode 支持，包括完整的语法高亮、Godot 类/方法的智能补全、实时类型检查、定义跳转、参数提示、标签补全和 Import 路径补全等功能。",
   "publisher": "hakubox",
-  "version": "0.3.2",
+  "version": "0.3.4",
   "icon": "icon.png",
   "repository": {
     "type": "git",
@@ -27,6 +27,24 @@
   "contributes": {
     "commands": [
       {
+        "command": "dialogue.removeDialogueIDs",
+        "title": "Dialogue: 清除所有台词 ID",
+        "category": "Dialogue"
+      },
+      {
+        "command": "dialogue.addDialogueIDs",
+        "title": "Dialogue: 为所有台词添加 ID",
+        "category": "Dialogue"
+      },
+      {
+        "command": "dialogue.openTagSettings",
+        "title": "Dialogue: 打开标签配置"
+      },
+      {
+        "command": "dialogue.addNewTag",
+        "title": "Dialogue: 添加新元数据标签"
+      },
+      {
         "command": "dialogue.exportJSON",
         "title": "Dialogue: 导出文案",
         "category": "Dialogue"
@@ -46,21 +64,49 @@
       "editor/context": [
         {
           "when": "resourceLangId == dialogue",
-          "command": "dialogue.exportJSON",
+          "command": "dialogue.removeDialogueIDs",
           "group": "dialogue@1"
         },
         {
           "when": "resourceLangId == dialogue",
-          "command": "dialogue.previewJSON",
+          "command": "dialogue.addDialogueIDs",
           "group": "dialogue@2"
         },
         {
           "when": "resourceLangId == dialogue",
-          "command": "dialogue.copyJSON",
+          "command": "dialogue.openTagSettings",
           "group": "dialogue@3"
+        },
+        {
+          "when": "resourceLangId == dialogue",
+          "command": "dialogue.addNewTag",
+          "group": "dialogue@4"
+        },
+        {
+          "when": "resourceLangId == dialogue",
+          "command": "dialogue.exportJSON",
+          "group": "dialogue@5"
+        },
+        {
+          "when": "resourceLangId == dialogue",
+          "command": "dialogue.previewJSON",
+          "group": "dialogue@6"
+        },
+        {
+          "when": "resourceLangId == dialogue",
+          "command": "dialogue.copyJSON",
+          "group": "dialogue@7"
         }
       ],
       "commandPalette": [
+        {
+          "command": "dialogue.removeDialogueIDs",
+          "when": "resourceLangId == dialogue"
+        },
+        {
+          "command": "dialogue.addDialogueIDs",
+          "when": "resourceLangId == dialogue"
+        },
         {
           "command": "dialogue.exportJSON",
           "when": "resourceLangId == dialogue"
@@ -78,6 +124,104 @@
     "configuration": {
       "title": "Dialogue Godot Support",
       "properties": {
+        "dialogue.diagnostics.enableCustomTags": {
+          "type": "boolean",
+          "default": true,
+          "description": "是否启用自定义标签补全"
+        },
+        "dialogue.diagnostics.metadataCategories": {
+          "type": "object",
+          "default": {
+            "face": {
+              "icon": "😊",
+              "description": "表情"
+            },
+            "se": {
+              "icon": "🔊",
+              "description": "音频"
+            },
+            "bgm": {
+              "icon": "🎵",
+              "description": "背景音乐"
+            },
+            "effect": {
+              "icon": "✨",
+              "description": "特效"
+            },
+            "other": {
+              "icon": "🏷️",
+              "description": "其他标签"
+            }
+          },
+          "description": "标签分类配置"
+        },
+        "dialogue.diagnostics.customTags": {
+          "type": "object",
+          "default": {
+            "happy": {
+              "description": "快乐表情",
+              "example": "NPC: 你好！[#happy]",
+              "category": "face"
+            },
+            "sad": {
+              "description": "悲伤表情",
+              "example": "NPC: 呜呜...[#sad]",
+              "category": "face"
+            },
+            "angry": {
+              "description": "愤怒表情",
+              "example": "NPC: 可恶！[#angry]",
+              "category": "face"
+            },
+            "surprised": {
+              "description": "惊讶表情",
+              "example": "NPC: 什么！？[#surprised]",
+              "category": "face"
+            },
+            "knock_sound": {
+              "description": "敲门音效",
+              "example": "NPC: *敲门* [#knock_sound]",
+              "category": "se"
+            },
+            "explosion_sound": {
+              "description": "爆炸音效",
+              "example": "轰！[#explosion_sound]",
+              "category": "se"
+            },
+            "camera_shake": {
+              "description": "相机震动特效",
+              "example": "NPC: 受死！[#camera_shake]",
+              "category": "effect"
+            },
+            "fade_out": {
+              "description": "淡出动画",
+              "example": "NPC: 再见...[#fade_out]",
+              "category": "effect"
+            }
+          },
+          "markdownDescription": "自定义标签配置。格式：\n```json \n{ \"标签名\": { \"description\": \"说明\", \"example\": \"示例\", \"category\": \"分类\" } }\n```",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "description": {
+                "type": "string",
+                "description": "标签说明"
+              },
+              "example": {
+                "type": "string",
+                "description": "使用示例"
+              },
+              "category": {
+                "type": "string",
+                "description": "标签分类（如 emotion, sound, animation, camera 等）"
+              }
+            },
+            "required": [
+              "description",
+              "category"
+            ]
+          }
+        },
         "dialogue.diagnostics.globalClasses": {
           "type": "array",
           "default": [],
@@ -188,6 +332,12 @@
         "language": "dialogue",
         "scopeName": "source.dialogue",
         "path": "./syntaxes/dialogue.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "dialogue",
+        "path": "./syntaxes/snippets.json"
       }
     ]
   },

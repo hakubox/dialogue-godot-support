@@ -35,9 +35,11 @@ export class TitleManager {
 			const line = lines[i];
 			const trimmed = line.trim();
 
-			// 收集注释
-			if (trimmed.startsWith('#') && !trimmed.startsWith('##')) {
-				const commentText = trimmed.substring(1).trim();
+			// ✅ 修改：收集所有注释（包括 # 和 ##）
+			if (trimmed.startsWith('#')) {
+				// 提取注释内容（去掉开头的 # 或 ##）
+				const commentText = trimmed.replace(/^#+\s*/, '');
+
 				if (pendingComment) {
 					pendingComment += '\n' + commentText;
 				} else {
@@ -51,7 +53,7 @@ export class TitleManager {
 			if (titleMatch) {
 				const titleName = titleMatch[1];
 
-				// ✅ 获取预览
+				// 获取预览
 				const preview = this.getTitlePreview(lines, i + 1);
 
 				titles.push({
@@ -59,14 +61,15 @@ export class TitleManager {
 					fullName: titleName,
 					line: i,
 					uri: document.uri,
-					comment: pendingComment,
-					preview: preview  // ✅ 添加预览
+					comment: pendingComment,  // ✅ 这里会包含话题上方的所有注释
+					preview: preview
 				});
 
 				pendingComment = undefined;
 				continue;
 			}
 
+			// 如果遇到非注释、非话题的内容，清空待处理的注释
 			if (trimmed && !trimmed.startsWith('#')) {
 				pendingComment = undefined;
 			}
@@ -92,7 +95,7 @@ export class TitleManager {
 			// 匹配旁白（不是选项）
 			if (!line.startsWith('-')) {
 				let content = line;
-				
+
 				if (content.length > 50) {
 					content = content.substring(0, 50) + '...';
 				}
@@ -133,14 +136,30 @@ export class TitleManager {
 			const importedLines = importedContent.split('\n');
 			const importedUri = vscode.Uri.file(fsPath);
 
+			// ✅ 新增：在导入文件中也收集注释
+			let pendingComment: string | undefined;
+
 			for (let i = 0; i < importedLines.length; i++) {
 				const importedLine = importedLines[i];
-				const titleMatch = importedLine.trim().match(/^~\s+([^\s]+!?)/);
+				const trimmed = importedLine.trim();
+
+				// 收集注释
+				if (trimmed.startsWith('#')) {
+					const commentText = trimmed.replace(/^#+\s*/, '');
+					if (pendingComment) {
+						pendingComment += '\n' + commentText;
+					} else {
+						pendingComment = commentText;
+					}
+					continue;
+				}
+
+				const titleMatch = trimmed.match(/^~\s+([^\s]+!?)/);
 
 				if (titleMatch) {
 					const titleName = titleMatch[1];
 
-					// ✅ 获取导入文件的预览
+					// 获取导入文件的预览
 					const preview = this.getTitlePreview(importedLines, i + 1);
 
 					importedTitles.push({
@@ -149,10 +168,17 @@ export class TitleManager {
 						line: i,
 						uri: importedUri,
 						alias: alias,
-						preview: preview  // ✅ 添加预览
+						comment: pendingComment,  // ✅ 包含注释
+						preview: preview
 					});
 
+					pendingComment = undefined;
 					console.log(`[Dialogue] 📦 导入段落: ${alias}/${titleName}`);
+				}
+
+				// 清空注释
+				if (trimmed && !trimmed.startsWith('#') && !titleMatch) {
+					pendingComment = undefined;
 				}
 			}
 		}
@@ -342,7 +368,7 @@ export class TitleHoverProvider implements vscode.HoverProvider {
 		if (title) {
 			const docs: string[] = [];
 			docs.push(`### 📍 ${title.fullName}`);
-			
+
 			docs.push('');
 			docs.push('**类型:** 对话段落');
 

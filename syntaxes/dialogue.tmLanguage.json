@@ -97,11 +97,12 @@
     "block-mutations": {
       "patterns": [
         {
-          "name": "meta.block-mutation.do.dialogue",
-          "match": "^\\s*(do!?|set|while|when|match)\\s+(.+)$",
+          "comment": "控制流语句（需要冒号结尾）: if/elif/else/match/then/while",
+          "name": "meta.block-mutation.control-flow.dialogue",
+          "match": "^\\s*(if|elif|else|match|then|while)\\s+(.+?)\\s*(:?)\\s*$",
           "captures": {
             "1": {
-              "name": "keyword.control.do.dialogue"
+              "name": "keyword.control.conditional.dialogue"
             },
             "2": {
               "patterns": [
@@ -109,10 +110,27 @@
                   "include": "#expression"
                 }
               ]
+            },
+            "3": {
+              "name": "punctuation.separator.colon.dialogue"
             }
           }
         },
         {
+          "comment": "else 单独一行（无条件）",
+          "name": "meta.block-mutation.else.dialogue",
+          "match": "^\\s*(else)\\s*(:?)\\s*$",
+          "captures": {
+            "1": {
+              "name": "keyword.control.conditional.dialogue"
+            },
+            "2": {
+              "name": "punctuation.separator.colon.dialogue"
+            }
+          }
+        },
+        {
+          "comment": "set 变量赋值",
           "name": "meta.block-mutation.set.dialogue",
           "match": "^\\s*(set)\\s+([^=]+)(=|\\+=|-=|\\*=|/=)\\s*(.+)$",
           "captures": {
@@ -130,6 +148,23 @@
               "name": "keyword.operator.assignment.dialogue"
             },
             "4": {
+              "patterns": [
+                {
+                  "include": "#expression"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "comment": "do/when 语句（无冒号）",
+          "name": "meta.block-mutation.do.dialogue",
+          "match": "^\\s*(do!?|when)\\s+(.+)$",
+          "captures": {
+            "1": {
+              "name": "keyword.control.do.dialogue"
+            },
+            "2": {
               "patterns": [
                 {
                   "include": "#expression"
@@ -434,21 +469,6 @@
               "name": "punctuation.section.embedded.end.dialogue"
             }
           }
-        },
-        {
-          "name": "meta.condition.inline.endif.dialogue",
-          "match": "(\\[)(endif)(\\])",
-          "captures": {
-            "1": {
-              "name": "punctuation.section.embedded.begin.dialogue"
-            },
-            "2": {
-              "name": "keyword.control.conditional.endif.dialogue"
-            },
-            "3": {
-              "name": "punctuation.section.embedded.end.dialogue"
-            }
-          }
         }
       ]
     },
@@ -572,6 +592,27 @@
           ]
         },
         {
+          "comment": "带空格参数的特殊标签（如 [if expression]、[do method()]）",
+          "name": "entity.name.tag.special.dialogue",
+          "match": "\\[(if|elif|do!?|set)\\s+([^\\]]+)\\]",
+          "captures": {
+            "1": {
+              "name": "keyword.control.tag.dialogue"
+            },
+            "2": {
+              "patterns": [
+                {
+                  "include": "#expressions"
+                },
+                {
+                  "name": "meta.embedded.expression.dialogue",
+                  "match": ".+"
+                }
+              ]
+            }
+          }
+        },
+        {
           "comment": "带值的特殊标签（如 [wait=1]）",
           "name": "entity.name.tag.special.dialogue",
           "match": "\\[([a-zA-Z_][a-zA-Z0-9_]*)\\s*=\\s*([^\\]]+)\\]",
@@ -592,6 +633,26 @@
                   "match": ".+"
                 }
               ]
+            }
+          }
+        },
+        {
+          "comment": "闭合标签（如 [/if]、[/wave]）",
+          "name": "entity.name.tag.special.dialogue",
+          "match": "\\[/([a-zA-Z_][a-zA-Z0-9_]*)\\]",
+          "captures": {
+            "1": {
+              "name": "keyword.control.tag.dialogue"
+            }
+          }
+        },
+        {
+          "comment": "简单标签（如 [else]、[pause]）",
+          "name": "entity.name.tag.special.dialogue",
+          "match": "\\[([a-zA-Z_][a-zA-Z0-9_]*)\\]",
+          "captures": {
+            "1": {
+              "name": "keyword.control.tag.dialogue"
             }
           }
         }
@@ -918,7 +979,7 @@
       "patterns": [
         {
           "name": "markup.raw.bbcode.dialogue",
-          "match": "\\[/?(?!if|elif|else|endif|do|set|#|ID:)[\\w]+(?:=[^\\]]+)?\\]"
+          "match": "\\[/?(?!if|elif|else|do|set|#|ID:)[\\w]+(?:=[^\\]]+)?\\]"
         }
       ]
     }

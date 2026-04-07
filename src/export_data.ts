@@ -116,7 +116,6 @@ export class DialogueExporter {
 		cleanText = cleanText.replace(/\[if\s+[^\]]+\]\s*/g, '');
 		cleanText = cleanText.replace(/\[elif\s+[^\]]+\]\s*/g, '');
 		cleanText = cleanText.replace(/\[else\]\s*/g, '');
-		cleanText = cleanText.replace(/\[endif\]\s*/g, '');
 
 		// 移除内联 set/do
 		cleanText = cleanText.replace(/\[set\s+[^\]]+\]\s*/g, '');
@@ -132,7 +131,7 @@ export class DialogueExporter {
 		cleanText = cleanText.replace(/\s+/g, ' ').trim();
 
 		// ✅ 检查是否包含内联代码
-		const hasInlineCode = /\{\{[^}]+\}\}|\[(?:if|elif|else|endif|set|do)\s+[^\]]*\]/.test(rawText);
+		const hasInlineCode = /\{\{[^}]+\}\}|\[(?:if|elif|else|set|do)\s+[^\]]*\]/.test(rawText);
 
 		return {
 			id: `DLG_${id.toString().padStart(4, '0')}`,
@@ -173,7 +172,7 @@ export class DialogueExporter {
 	 * 判断是否是内联代码标签
 	 */
 	private static isInlineCodeTag(tagContent: string): boolean {
-		return /^(?:if|elif|else|endif|set|do!?)\s+/.test(tagContent);
+		return /^(?:if|elif|else|set|do!?)\s+/.test(tagContent);
 	}
 
 	/**

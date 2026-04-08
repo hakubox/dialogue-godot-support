@@ -13,9 +13,10 @@ export interface DialogueTag {
 	isPair: boolean;
 	description: string;
 	example: string;
-	category: 'time' | 'audio' | 'effect' | 'ui' | 'metadata' | 'action';  // ✅ 新增 action 分类
+	category: 'time' | 'audio' | 'effect' | 'ui' | 'metadata' | 'action';
 	isMetadata?: boolean;
-	isInline?: boolean;  // ✅ 新增：标记是否为行内标签
+	isInline?: boolean;
+	alias?: string[];
 }
 
 /**
@@ -371,6 +372,7 @@ export class TagConfigManager {
 
 	private allTags: Map<string, DialogueTag> = new Map();
 	private metadataCategories: Map<string, MetadataCategory> = new Map();
+	private aliasToTag: Map<string, string> = new Map();
 	private enabled: boolean = true;
 
 	private constructor() {
@@ -425,6 +427,7 @@ export class TagConfigManager {
 			description: string;
 			example?: string;
 			category?: string;
+			aliases?: string[];
 		}>>('diagnostics.customTags', {});
 
 		for (const [tagName, tagConfig] of Object.entries(customTagsConfig)) {
@@ -435,16 +438,46 @@ export class TagConfigManager {
 				description: tagConfig.description,
 				example: tagConfig.example || `[#${tagName}]`,
 				category: 'metadata',
-				isMetadata: true
+				isMetadata: true,
+				alias: tagConfig.aliases || []
 			};
 
 			if (tagConfig.category) {
 				(metadataTag as any).metadataCategory = tagConfig.category;
 			}
 			this.allTags.set(tagName, metadataTag);
+
+			// ✅ 构建别名映射
+			if (tagConfig.aliases && tagConfig.aliases.length > 0) {
+				for (const alias of tagConfig.aliases) {
+					this.aliasToTag.set(alias, tagName);
+					console.log(`[Dialogue] 📝 注册别名: "${alias}" -> "${tagName}"`);
+				}
+			}
 		}
 
 		console.log(`[Dialogue] ✅ 已加载 ${this.allTags.size} 个标签`);
+	}
+
+
+	/**
+	 * ✅ 新增：根据别名获取真实标签名
+	 */
+	public resolveAlias(aliasOrTagName: string): string {
+		return this.aliasToTag.get(aliasOrTagName) || aliasOrTagName;
+	}
+	/**
+	 * ✅ 新增：获取标签的所有别名
+	 */
+	public getAliases(tagName: string): string[] {
+		const tag = this.allTags.get(tagName);
+		return tag?.alias || [];
+	}
+	/**
+	 * ✅ 新增：检查字符串是否是某个标签的别名
+	 */
+	public isAlias(text: string): boolean {
+		return this.aliasToTag.has(text);
 	}
 
 	/**
@@ -527,6 +560,16 @@ export class TagConfigManager {
 
 		if (!description) return;
 
+		// ✅ 新增：输入别名
+		const aliasesInput = await vscode.window.showInputBox({
+			prompt: '输入别名（可选，多个别名用逗号分隔）',
+			placeHolder: '例如: 开心,高兴,愉快'
+		});
+
+		const aliases = aliasesInput
+			? aliasesInput.split(',').map(a => a.trim()).filter(a => a.length > 0)
+			: [];
+
 		const example = await vscode.window.showInputBox({
 			prompt: '输入使用示例（可选）',
 			placeHolder: `例如: NPC: 你好！[#${tagName}]`
@@ -551,12 +594,20 @@ export class TagConfigManager {
 		currentTags[tagName] = {
 			description: description,
 			example: example || `[#${tagName}]`,
-			category: categoryPick?.value
+			category: categoryPick?.value,
+			aliases: aliases
 		};
 
 		// 保存配置
 		await config.update('customTags', currentTags, vscode.ConfigurationTarget.Global);
-		vscode.window.showInformationMessage(`✅ 元数据标签 [#${tagName}] 已添加！`);
+
+		// ✅ 显示成功消息（含别名信息）
+		const aliasInfo = aliases.length > 0
+			? `（别名: ${aliases.join(', ')}）`
+			: '';
+		vscode.window.showInformationMessage(
+			`✅ 元数据标签 [#${tagName}] 已添加！${aliasInfo}`
+		);
 	}
 }
 
@@ -640,83 +691,183 @@ export class DialogueTagCompletionProvider implements vscode.CompletionItemProvi
 			// ✅ 如果是行内标签（isInline: true），才在 [ 触发时显示
 			if (isRegularTag && !tag.isInline) continue;
 
-			const item = new vscode.CompletionItem(
-				tag.isMetadata ? `#${tagName}` : tagName,
-				vscode.CompletionItemKind.Keyword
-			);
-
-			// 设置插入文本
+			// ✅ 为元数据标签创建主标签补全项
 			if (tag.isMetadata) {
-				item.insertText = `#${tagName}]`;
-			} else if (tag.hasValue) {
-				// ✅ 特殊处理 do/do!/set 标签（使用空格而非 =）
-				if (['do', 'do!', 'set', 'if', 'elif'].includes(tagName)) {
-					item.insertText = new vscode.SnippetString(`${tagName} \${1:${tag.valueHint}}\]`);
-				} else {
-					item.insertText = new vscode.SnippetString(`${tagName}=\${1:${tag.valueHint}}\]`);
+				items.push(this.createMetadataTagCompletionItem(tag, categoryIcons));
+
+				// ✅ 为每个别名创建补全项
+				if (tag.alias && tag.alias.length > 0) {
+					for (const alias of tag.alias) {
+						items.push(this.createAliasCompletionItem(alias, tag, categoryIcons));
+					}
 				}
-			} else if (tag.isPair) {
-				item.insertText = new vscode.SnippetString(`${tagName}\]$1[/${tagName}]`);
 			} else {
-				item.insertText = `${tagName}]`;
-			}
+				// 常规标签的补全项（保持不变）
+				const item = new vscode.CompletionItem(
+					tagName,
+					vscode.CompletionItemKind.Keyword
+				);
 
-			// 设置详细信息
-			if (tag.isMetadata) {
-				const metadataCategory = (tag as any).metadataCategory;
-				const categoryConfig = metadataCategory
-					? this.tagConfigManager.getMetadataCategory(metadataCategory)
-					: undefined;
+				if (tag.hasValue) {
+					if (['do', 'do!', 'set', 'if', 'elif'].includes(tagName)) {
+						item.insertText = new vscode.SnippetString(`${tagName} \${1:${tag.valueHint}}\]`);
+					} else {
+						item.insertText = new vscode.SnippetString(`${tagName}=\${1:${tag.valueHint}}\]`);
+					}
+				} else if (tag.isPair) {
+					item.insertText = new vscode.SnippetString(`${tagName}\]$1[/${tagName}]`);
+				} else {
+					item.insertText = `${tagName}]`;
+				}
 
-				const icon = categoryConfig?.icon || '🏷️';
-				const categoryDesc = categoryConfig?.description || '其他';
-				item.detail = `${icon} ${categoryDesc} - ${tag.description}`;
-			} else {
 				item.detail = `${categoryIcons[tag.category]} ${tag.description}`;
-			}
 
-			// 设置文档
-			const docs: string[] = [];
-			docs.push(`## ${categoryIcons[tag.category]} ${tag.isMetadata ? '#' : ''}${tagName}`);
-			docs.push('');
-			docs.push(`**类别:** ${tag.category}`);
-			docs.push('');
-			docs.push(`**描述:** ${tag.description}`);
-			docs.push('');
-			docs.push('**示例:**');
-			docs.push('```dialogue');
-			docs.push(tag.example);
-			docs.push('```');
-
-			if (tag.hasValue) {
+				const docs: string[] = [];
+				docs.push(`## ${categoryIcons[tag.category]} [${tagName}]`);
 				docs.push('');
-				docs.push(`**参数类型:** \`${tag.valueType}\``);
-				docs.push(`**参数说明:** ${tag.valueHint}`);
-			}
-
-			if (tag.isPair) {
+				docs.push(`**类别:** ${tag.category}`);
 				docs.push('');
-				docs.push('⚠️ **成对标签**，需要闭合标签 `[/' + tagName + ']`');
+				docs.push(`**描述:** ${tag.description}`);
+				docs.push('');
+				docs.push('**示例:**');
+				docs.push('```dialogue');
+				docs.push(tag.example);
+				docs.push('```');
+
+				if (tag.hasValue) {
+					docs.push('');
+					docs.push(`**参数类型:** \`${tag.valueType}\``);
+					docs.push(`**参数说明:** ${tag.valueHint}`);
+				}
+
+				if (tag.isPair) {
+					docs.push('');
+					docs.push('⚠️ **成对标签**，需要闭合标签 `[/' + tagName + ']`');
+				}
+
+				item.documentation = new vscode.MarkdownString(docs.join('\n'));
+
+				const categoryOrder: Record<string, string> = {
+					action: '0',
+					time: '1',
+					audio: '2',
+					effect: '3',
+					ui: '4',
+					metadata: '5'
+				};
+				item.sortText = `${categoryOrder[tag.category]}_${tagName}`;
+
+				items.push(item);
 			}
-
-			item.documentation = new vscode.MarkdownString(docs.join('\n'));
-
-			// 排序
-			const categoryOrder: Record<string, string> = {
-				action: '0',
-				time: '1',
-				audio: '2',
-				effect: '3',
-				ui: '4',
-				metadata: '5'
-			};
-			item.sortText = `${categoryOrder[tag.category]}_${tagName}`;
-
-			items.push(item);
 		}
 
 		console.log(`[Dialogue] 📦 返回 ${items.length} 个标签补全项`);
 		return items;
+	}
+
+	/**
+	 * ✅ 新增：创建元数据标签补全项
+	 */
+	private createMetadataTagCompletionItem(
+		tag: DialogueTag,
+		categoryIcons: Record<string, string>
+	): vscode.CompletionItem {
+		const item = new vscode.CompletionItem(
+			`#${tag.name}`,
+			vscode.CompletionItemKind.Keyword
+		);
+
+		item.insertText = `#${tag.name}]`;
+
+		const metadataCategory = (tag as any).metadataCategory;
+		const categoryConfig = metadataCategory
+			? this.tagConfigManager.getMetadataCategory(metadataCategory)
+			: undefined;
+
+		const icon = categoryConfig?.icon || '🏷️';
+		const categoryDesc = categoryConfig?.description || '其他';
+		item.detail = `${icon} ${categoryDesc} - ${tag.description}`;
+
+		const docs: string[] = [];
+		docs.push(`## ${icon} #${tag.name}`);
+		docs.push('');
+		docs.push(`**类别:** ${categoryDesc}`);
+		docs.push('');
+		docs.push(`**描述:** ${tag.description}`);
+		docs.push('');
+
+		// ✅ 显示别名信息
+		if (tag.alias && tag.alias.length > 0) {
+			docs.push(`**别名:** ${tag.alias.map(a => `\`${a}\``).join(', ')}`);
+			docs.push('');
+		}
+
+		docs.push('**示例:**');
+		docs.push('```dialogue');
+		docs.push(tag.example);
+		docs.push('```');
+
+		item.documentation = new vscode.MarkdownString(docs.join('\n'));
+		item.sortText = `5_metadata_${tag.name}`;
+
+		return item;
+	}
+
+	/**
+	 * ✅ 新增:创建别名补全项
+	 */
+	private createAliasCompletionItem(
+		alias: string,
+		tag: DialogueTag,
+		categoryIcons: Record<string, string>
+	): vscode.CompletionItem {
+		const item = new vscode.CompletionItem(
+			alias,  // 显示别名
+			vscode.CompletionItemKind.Text  // 用文本图标区分
+		);
+
+		item.insertText = `${tag.name}]`;
+		item.filterText = alias;  // 用于搜索匹配
+
+		const metadataCategory = (tag as any).metadataCategory;
+		const categoryConfig = metadataCategory
+			? this.tagConfigManager.getMetadataCategory(metadataCategory)
+			: undefined;
+
+		const icon = categoryConfig?.icon || '🏷️';
+		const categoryDesc = categoryConfig?.description || '其他';
+
+		// ✅ 在详情中标注这是别名
+		item.detail = `${icon} ${categoryDesc} - ${tag.description} (别名: ${alias})`;
+
+		const docs: string[] = [];
+		docs.push(`## 🔄 ${alias}`);
+		docs.push('');
+		docs.push(`**真实标签:** \`#${tag.name}\``);
+		docs.push('');
+		docs.push(`**类别:** ${categoryDesc}`);
+		docs.push('');
+		docs.push(`**描述:** ${tag.description}`);
+		docs.push('');
+
+		// ✅ 显示所有别名
+		if (tag.alias && tag.alias.length > 1) {
+			const otherAliases = tag.alias.filter(a => a !== alias);
+			docs.push(`**其他别名:** ${otherAliases.map(a => `\`${a}\``).join(', ')}`);
+			docs.push('');
+		}
+
+		docs.push('**示例:**');
+		docs.push('```dialogue');
+		docs.push(tag.example);
+		docs.push('```');
+
+		item.documentation = new vscode.MarkdownString(docs.join('\n'));
+
+		// ✅ 别名排在真实标签后面
+		item.sortText = `5_metadata_${tag.name}_alias_${alias}`;
+
+		return item;
 	}
 
 	/**
@@ -957,7 +1108,7 @@ class DialogueTagHoverProvider implements vscode.HoverProvider {
 	/**
 	 * 获取行内标签悬停信息
 	 */
-	private getInlineTagHover(tagName: string, tagValue?: string): vscode.Hover | undefined {
+	private getInlineTagHover(tagName: string, tagValue?: string, aliasName?: string): vscode.Hover | undefined {
 		const tagDef = this.tagConfigManager.getTag(tagName);
 
 		if (!tagDef) {
@@ -995,8 +1146,17 @@ class DialogueTagHoverProvider implements vscode.HoverProvider {
 				: undefined;
 			const icon = categoryConfig?.icon || '🏷️';
 			const categoryDesc = categoryConfig?.description || '其他';
-			docs.push(`## ${icon} #${tagDef.name}`);
-			docs.push('');
+			
+			// ✅ 如果是通过别名悬停的，显示别名信息
+			if (aliasName) {
+				docs.push(`## 🔄 别名: ${aliasName}`);
+				docs.push('');
+				docs.push(`**真实标签:** \`#${tagDef.name}\``);
+				docs.push('');
+			} else {
+				docs.push(`## ${icon} #${tagDef.name}`);
+				docs.push('');
+			}
 			docs.push(`**类别:** ${categoryDesc}`);
 			docs.push('');
 		} else {
@@ -1009,6 +1169,19 @@ class DialogueTagHoverProvider implements vscode.HoverProvider {
 			docs.push(`**描述:** ${kwDef.inlineDescription}`);
 		} else {
 			docs.push(`**描述:** ${tagDef.description}`);
+		}
+
+		// ✅ 显示别名信息
+		if (tagDef.alias && tagDef.alias.length > 0) {
+			docs.push('');
+			const allAlias = aliasName
+				? tagDef.alias.filter(a => a !== aliasName)
+				: tagDef.alias;
+			
+			if (allAlias.length > 0) {
+				const aliasLabel = aliasName ? '其他别名' : '别名';
+				docs.push(`**${aliasLabel}:** ${allAlias.map(a => `\`${a}\``).join(', ')}`);
+			}
 		}
 
 		if (tagDef.hasValue) {

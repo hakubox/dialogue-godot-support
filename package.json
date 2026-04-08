@@ -3,7 +3,7 @@
   "displayName": "Godot Dialogue Manager 增强",
   "description": "为 Godot 4.x Dialogue Manager 提供强大的 VSCode 支持，包括完整的语法高亮、Godot 类/方法的智能补全、实时类型检查、定义跳转、参数提示、标签补全和 Import 路径补全等功能。",
   "publisher": "hakubox",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "icon": "icon.png",
   "repository": {
     "type": "git",
@@ -161,45 +161,53 @@
             "happy": {
               "description": "快乐表情",
               "example": "NPC: 你好！[#happy]",
-              "category": "face"
+              "category": "face",
+              "alias": ["开心", "高兴"]
             },
             "sad": {
               "description": "悲伤表情",
               "example": "NPC: 呜呜...[#sad]",
-              "category": "face"
+              "category": "face",
+              "alias": ["伤心", "难过"]
             },
             "angry": {
               "description": "愤怒表情",
               "example": "NPC: 可恶！[#angry]",
-              "category": "face"
+              "category": "face",
+              "alias": ["生气", "愤怒"]
             },
             "surprised": {
               "description": "惊讶表情",
               "example": "NPC: 什么！？[#surprised]",
-              "category": "face"
+              "category": "face",
+              "alias": ["惊讶", "吃惊"]
             },
             "knock_sound": {
               "description": "敲门音效",
               "example": "NPC: *敲门* [#knock_sound]",
-              "category": "se"
+              "category": "se",
+              "alias": ["敲门"]
             },
             "explosion_sound": {
               "description": "爆炸音效",
               "example": "轰！[#explosion_sound]",
-              "category": "se"
+              "category": "se",
+              "alias": ["爆炸"]
             },
             "camera_shake": {
               "description": "相机震动特效",
               "example": "NPC: 受死！[#camera_shake]",
-              "category": "effect"
+              "category": "effect",
+              "alias": ["震动", "抖动"]
             },
             "fade_out": {
               "description": "淡出动画",
               "example": "NPC: 再见...[#fade_out]",
-              "category": "effect"
+              "category": "effect",
+              "alias": ["淡出"]
             }
           },
-          "markdownDescription": "自定义标签配置。格式：\n```json \n{ \"标签名\": { \"description\": \"说明\", \"example\": \"示例\", \"category\": \"分类\" } }\n```",
+          "markdownDescription": "自定义标签配置。格式：\n```json \n{ \"标签名\": { \"description\": \"说明\", \"example\": \"示例\", \"category\": \"分类\", \"alias\": [\"别名1\", \"别名2\"] } }\n```",
           "additionalProperties": {
             "type": "object",
             "properties": {
